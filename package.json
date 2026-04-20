@@ -1,0 +1,9 @@
+{
+  "name": "gork",
+  "version": "1.0.0",
+  "dependencies": {
+    "discord.js": "latest",
+    "dotenv": "latest",
+    "openai": "latest"
+  }
+}
