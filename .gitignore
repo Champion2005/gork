@@ -1,0 +1,7 @@
+node_modules/
+.env
+memories.json
+configs.json
+*.archive
+test_or.js
+test_grok.js
