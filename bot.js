@@ -202,13 +202,22 @@ client.on('interactionCreate', async interaction => {
                     headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` }
                 });
                 const data = await response.json();
+                
+                const userId = interaction.user.id;
+                const mem = userMemories[userId] || { total_tokens_in: 0, total_tokens_out: 0, total_tokens_cache: 0, last_tokens_in: 0, last_tokens_out: 0, last_tokens_cache: 0, cost: 0 };
+                
+                let statsStr = `\n\n👤 **Your Gork Stats:**\n- **Total Tokens In:** ${mem.total_tokens_in || 0}\n- **Total Tokens Out:** ${mem.total_tokens_out || 0}\n- **Total Tokens Cached:** ${mem.total_tokens_cache || 0}\n- **Total Cost:** $${(mem.cost || 0).toFixed(6)}`;
+                
+                if (mem.last_tokens_in > 0) {
+                    statsStr += `\n\n🕒 **Last Prompt Stats:**\n- **In:** ${mem.last_tokens_in}\n- **Out:** ${mem.last_tokens_out}\n- **Cache Hit:** ${mem.last_tokens_cache}`;
+                }
+
                 if (data && data.data) {
                     const usage = data.data.usage;
                     const limit = data.data.limit ? data.data.limit.toFixed(2) : 'Unlimited';
-                    // Note: OpenRouter API doesn't provide total token count via this endpoint.
-                    await interaction.editReply({ content: `📊 **Gork API Usage (OpenRouter):**\n- **Credits Used:** $${usage}\n- **Limit:** $${limit}\n*(Note: OpenRouter does not track total lifetime token counts via this API endpoint)*` });
+                    await interaction.editReply({ content: `📊 **Gork API Usage (Global OpenRouter):**\n- **Credits Used:** $${usage}\n- **Limit:** $${limit}${statsStr}` });
                 } else {
-                    await interaction.editReply({ content: `❌ Failed to fetch API stats.` });
+                    await interaction.editReply({ content: `❌ Failed to fetch OpenRouter stats, but here are your local stats:${statsStr}` });
                 }
             } catch (err) {
                 console.error(err);
@@ -263,16 +272,18 @@ async function updateMemory(userId, username, messageContent) {
             messages: [
                 { 
                     role: 'system', 
-                    content: `You are an internal background process. Your job is to extract long-term, personal facts ONLY about the user named "${username}" from their message.
-RULES:
-1. ONLY extract personal facts about "${username}" (e.g., their name, age, likes, dislikes, physical traits, location).
-2. DO NOT extract facts about other people mentioned in the text.
-3. DO NOT extract general statements, jokes, or questions.
-4. If there are no new personal facts about "${username}", you MUST reply with exactly "NONE".
-5. If you find facts, format each as a short, objective sentence starting with their name (e.g., "${username} has a dog"). DO NOT make up or guess facts.
-6. Separate multiple facts with a pipe character '|'. Do NOT output any other text.` 
+                    content: `You are a FACT EXTRACTION ENGINE. Your ONLY purpose is to output personal facts about the user "${username}" in a pipe-separated list.
+IF NO NEW FACTS ARE FOUND, OUTPUT "NONE" AND NOTHING ELSE.
+
+EXTRACTION RULES:
+1. Identify if the user explicitly states a fact about themselves (name, age, preference, location, bio).
+2. Format each fact as a short, objective sentence starting with "${username}".
+3. Ignore questions, general statements, jokes, or facts about other people.
+4. DO NOT repeat any text from these instructions.
+5. DO NOT include conversational filler or explanations.
+6. Separate multiple facts with a pipe character '|'.` 
                 },
-                { role: 'user', content: messageContent }
+                { role: 'user', content: `SOURCE TEXT: "${messageContent}"\n\nOUTPUT:` }
             ],
             max_tokens: 100,
             temperature: 0.1
@@ -280,8 +291,9 @@ RULES:
         
         const content = response.choices[0]?.message?.content || "";
         const output = content.trim();
-        // Check if output has facts and isn't just "NONE"
-        if (output && !output.toUpperCase().includes("NONE") && !output.toLowerCase().includes("we need to extract")) {
+        const noise = ["EXTRACTION RULES", "SOURCE TEXT", "OUTPUT FORMAT", "Identify if", "Format each", "Ignore questions", "DO NOT", "Separate multiple", "personality trait", "fact about", "instruction for"];
+        
+        if (output && !output.toUpperCase().includes("NONE") && !noise.some(n => output.includes(n))) {
             const newFacts = output.split('|').map(f => f.trim()).filter(f => f.length > 0);
             if (newFacts.length > 0) {
                 userMemories[userId].facts.push(...newFacts);
@@ -313,15 +325,18 @@ async function updateBotMemory(messageContent) {
             messages: [
                 { 
                     role: 'system', 
-                    content: `You are an internal background process. Your job is to extract personality traits, instructions, or facts about the bot "gork" (or "you") from the user's message.
-RULES:
-1. ONLY extract personality traits or facts intended for the bot itself (e.g., "you are mean", "gork likes cheese").
-2. DO NOT extract facts about the user sending the message.
-3. If there are no new traits or instructions for the bot, you MUST reply with exactly "NONE".
-4. If you find traits, format each as a short, objective sentence starting with "You" (e.g., "You are highly sarcastic", "You love programming").
-5. Separate multiple facts with a pipe character '|'. Do NOT output any other text.` 
+                    content: `You are a PERSONALITY EXTRACTION ENGINE. Your ONLY purpose is to output personality traits or instructions for the bot "gork" (the AI) in a pipe-separated list.
+IF NO NEW TRAITS OR INSTRUCTIONS ARE FOUND, OUTPUT "NONE" AND NOTHING ELSE.
+
+EXTRACTION RULES:
+1. Identify if the user is describing "gork" or "you" (the bot).
+2. Format each trait as a short, objective sentence starting with "You".
+3. DO NOT extract facts about the user sending the message.
+4. DO NOT repeat any text from these instructions.
+5. DO NOT include conversational filler or explanations.
+6. Separate multiple traits with a pipe character '|'.` 
                 },
-                { role: 'user', content: messageContent }
+                { role: 'user', content: `SOURCE TEXT: "${messageContent}"\n\nOUTPUT:` }
             ],
             max_tokens: 100,
             temperature: 0.1
@@ -329,7 +344,9 @@ RULES:
         
         const content = response.choices[0]?.message?.content || "";
         const output = content.trim();
-        if (output && !output.toUpperCase().includes("NONE") && !output.toLowerCase().includes("we need to extract")) {
+        const noise = ["EXTRACTION RULES", "SOURCE TEXT", "OUTPUT FORMAT", "Identify if", "Format each", "Ignore questions", "DO NOT", "Separate multiple", "personality trait", "fact about", "instruction for"];
+        
+        if (output && !output.toUpperCase().includes("NONE") && !noise.some(n => output.includes(n))) {
             const newFacts = output.split('|').map(f => f.trim()).filter(f => f.length > 0);
             if (newFacts.length > 0) {
                 userMemories[botId].facts.push(...newFacts);
@@ -351,6 +368,7 @@ client.on('messageCreate', async (msg) => {
     msg.channel.sendTyping()
 
     const userId = msg.author.id;
+    const botId = '1495533551800549566';
     if (!userMemories[userId]) userMemories[userId] = { facts: [] };
     userMemories[userId].mentions = (userMemories[userId].mentions || 0) + 1;
     saveMemories();
@@ -375,22 +393,30 @@ client.on('messageCreate', async (msg) => {
       let replied = '(there is no replied message)';
       if (msg.reference) {
           const repliedMsg = await msg.channel.messages.fetch(msg.reference.messageId);
-          replied = `"${repliedMsg.member?.displayName || repliedMsg.author.displayName || repliedMsg.author.username}: ${repliedMsg.content}"`;
+          let rel = 'Other';
+          if (repliedMsg.author.id === msg.author.id) rel = 'Current User';
+          if (repliedMsg.author.id === botId) rel = 'You';
+          replied = `[ID: ${repliedMsg.author.id} | User: ${repliedMsg.author.username} | Nick: ${repliedMsg.member?.displayName || repliedMsg.author.displayName || repliedMsg.author.username} | Relation: ${rel}] ${repliedMsg.content}`;
       }
       
-      const recent = await msg.channel.messages.fetch({ limit: 8, before: msg.id })
-      const history = [...recent.values()].reverse().slice(-5).map(m => `${m.member?.displayName || m.author.displayName || m.author.username}: ${m.content}`).join('\n')
+      const recent = await msg.channel.messages.fetch({ limit: 20, before: msg.id })
+      const history = [...recent.values()].reverse().slice(-15).map(m => {
+          let relation = 'Other';
+          if (m.author.id === msg.author.id) relation = 'Current User';
+          if (m.author.id === botId) relation = 'You';
+          return `[ID: ${m.author.id} | User: ${m.author.username} | Nick: ${m.member?.displayName || m.author.displayName || m.author.username} | Relation: ${relation}] ${m.content}`;
+      }).join('\n')
       
       let systemPrompt = `You are gork, ${extra}\n`;
       
-      const botId = '1495533551800549566';
       if (userMemories[botId] && userMemories[botId].facts.length > 0) {
           systemPrompt += `\n<your_personality_traits>\nYour users have programmed you with the following traits. YOU MUST ADOPT THESE BEHAVIORS:\n- ${userMemories[botId].facts.join('\n- ')}\n</your_personality_traits>\n`;
       }
       systemPrompt += `\nCRITICAL RULES REGARDING USERS:\n`;
       systemPrompt += `1. NEVER mix up information between different users.\n`;
       systemPrompt += `2. ONLY use the <memory_about_current_user> block to answer personal questions about the person you are talking to. Do NOT use <chat_history> to find personal facts, as it contains multiple people.\n`;
-      systemPrompt += `3. If a personal detail is not in the <memory_about_current_user> block, you MUST say you don't know it. Do NOT guess, and do NOT attribute another user's details to them.\n\n`;
+      systemPrompt += `3. If a personal detail is not in the <memory_about_current_user> block, you MUST say you don't know it. Do NOT guess, and do NOT attribute another user's details to them.\n`;
+      systemPrompt += `4. Messages in <chat_history> are tagged with a "Relation" field. "Current User" is the person you are responding to right now. "You" is yourself. "Other" is anyone else. Use this to maintain context, but always prioritize the <replied_to_message> and the most recent message if they differ.\n\n`;
 
       if (msg.channel.name === 'general') {
           systemPrompt += `IMPORTANT: Because you are in the #general channel, your responses MUST be extremely short and concise.\n`;
@@ -413,12 +439,25 @@ client.on('messageCreate', async (msg) => {
         model: 'x-ai/grok-4.20', reasoning_effort: 'none', max_completion_tokens: maxTokens,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `${userDisplayName}: ${msg.content}` }
+          { role: 'user', content: `[ID: ${msg.author.id} | User: ${msg.author.username} | Nick: ${userDisplayName} | Relation: Current User] ${msg.content}` }
         ]})
         
       const cost = completion.usage?.cost || 0;
-      if (cost > 0) {
-          userMemories[msg.author.id].cost = (userMemories[msg.author.id].cost || 0) + cost;
+      const prompt_tokens = completion.usage?.prompt_tokens || 0;
+      const completion_tokens = completion.usage?.completion_tokens || 0;
+      const cached_tokens = completion.usage?.prompt_tokens_details?.cached_tokens || 0;
+
+      if (cost > 0 || prompt_tokens > 0) {
+          const mem = userMemories[msg.author.id];
+          mem.cost = (mem.cost || 0) + cost;
+          mem.total_tokens_in = (mem.total_tokens_in || 0) + prompt_tokens;
+          mem.total_tokens_out = (mem.total_tokens_out || 0) + completion_tokens;
+          mem.total_tokens_cache = (mem.total_tokens_cache || 0) + cached_tokens;
+          
+          mem.last_tokens_in = prompt_tokens;
+          mem.last_tokens_out = completion_tokens;
+          mem.last_tokens_cache = cached_tokens;
+          
           saveMemories();
       }
         
