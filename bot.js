@@ -272,16 +272,18 @@ async function updateMemory(userId, username, messageContent) {
             messages: [
                 { 
                     role: 'system', 
-                    content: `You are an internal background process. Your job is to extract long-term, personal facts ONLY about the user named "${username}" from their message.
-RULES:
-1. ONLY extract personal facts about "${username}" (e.g., their name, age, likes, dislikes, physical traits, location).
-2. DO NOT extract facts about other people mentioned in the text.
-3. DO NOT extract general statements, jokes, or questions.
-4. If there are no new personal facts about "${username}", you MUST reply with exactly "NONE".
-5. If you find facts, format each as a short, objective sentence starting with their name (e.g., "${username} has a dog"). DO NOT make up or guess facts.
-6. Separate multiple facts with a pipe character '|'. Do NOT output any other text.` 
+                    content: `You are a FACT EXTRACTION ENGINE. Your ONLY purpose is to output personal facts about the user "${username}" in a pipe-separated list.
+IF NO NEW FACTS ARE FOUND, OUTPUT "NONE" AND NOTHING ELSE.
+
+EXTRACTION RULES:
+1. Identify if the user explicitly states a fact about themselves (name, age, preference, location, bio).
+2. Format each fact as a short, objective sentence starting with "${username}".
+3. Ignore questions, general statements, jokes, or facts about other people.
+4. DO NOT repeat any text from these instructions.
+5. DO NOT include conversational filler or explanations.
+6. Separate multiple facts with a pipe character '|'.` 
                 },
-                { role: 'user', content: messageContent }
+                { role: 'user', content: `SOURCE TEXT: "${messageContent}"\n\nOUTPUT:` }
             ],
             max_tokens: 100,
             temperature: 0.1
@@ -289,8 +291,9 @@ RULES:
         
         const content = response.choices[0]?.message?.content || "";
         const output = content.trim();
-        // Check if output has facts and isn't just "NONE"
-        if (output && !output.toUpperCase().includes("NONE") && !output.toLowerCase().includes("we need to extract")) {
+        const noise = ["EXTRACTION RULES", "SOURCE TEXT", "OUTPUT FORMAT", "Identify if", "Format each", "Ignore questions", "DO NOT", "Separate multiple", "personality trait", "fact about", "instruction for"];
+        
+        if (output && !output.toUpperCase().includes("NONE") && !noise.some(n => output.includes(n))) {
             const newFacts = output.split('|').map(f => f.trim()).filter(f => f.length > 0);
             if (newFacts.length > 0) {
                 userMemories[userId].facts.push(...newFacts);
@@ -322,15 +325,18 @@ async function updateBotMemory(messageContent) {
             messages: [
                 { 
                     role: 'system', 
-                    content: `You are an internal background process. Your job is to extract personality traits, instructions, or facts about the bot "gork" (or "you") from the user's message.
-RULES:
-1. ONLY extract personality traits or facts intended for the bot itself (e.g., "you are mean", "gork likes cheese").
-2. DO NOT extract facts about the user sending the message.
-3. If there are no new traits or instructions for the bot, you MUST reply with exactly "NONE".
-4. If you find traits, format each as a short, objective sentence starting with "You" (e.g., "You are highly sarcastic", "You love programming").
-5. Separate multiple facts with a pipe character '|'. Do NOT output any other text.` 
+                    content: `You are a PERSONALITY EXTRACTION ENGINE. Your ONLY purpose is to output personality traits or instructions for the bot "gork" (the AI) in a pipe-separated list.
+IF NO NEW TRAITS OR INSTRUCTIONS ARE FOUND, OUTPUT "NONE" AND NOTHING ELSE.
+
+EXTRACTION RULES:
+1. Identify if the user is describing "gork" or "you" (the bot).
+2. Format each trait as a short, objective sentence starting with "You".
+3. DO NOT extract facts about the user sending the message.
+4. DO NOT repeat any text from these instructions.
+5. DO NOT include conversational filler or explanations.
+6. Separate multiple traits with a pipe character '|'.` 
                 },
-                { role: 'user', content: messageContent }
+                { role: 'user', content: `SOURCE TEXT: "${messageContent}"\n\nOUTPUT:` }
             ],
             max_tokens: 100,
             temperature: 0.1
@@ -338,7 +344,9 @@ RULES:
         
         const content = response.choices[0]?.message?.content || "";
         const output = content.trim();
-        if (output && !output.toUpperCase().includes("NONE") && !output.toLowerCase().includes("we need to extract")) {
+        const noise = ["EXTRACTION RULES", "SOURCE TEXT", "OUTPUT FORMAT", "Identify if", "Format each", "Ignore questions", "DO NOT", "Separate multiple", "personality trait", "fact about", "instruction for"];
+        
+        if (output && !output.toUpperCase().includes("NONE") && !noise.some(n => output.includes(n))) {
             const newFacts = output.split('|').map(f => f.trim()).filter(f => f.length > 0);
             if (newFacts.length > 0) {
                 userMemories[botId].facts.push(...newFacts);
