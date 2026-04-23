@@ -2,9 +2,11 @@
   "name": "gork",
   "version": "1.0.0",
   "scripts": {
-    "start": "node bot.js"
+    "start": "tsx main.ts"
   },
   "dependencies": {
+    "@openrouter/agent": "^0.4.0",
+    "@openrouter/sdk": "^0.12.20",
     "discord.js": "latest",
     "dotenv": "latest",
     "openai": "latest"
