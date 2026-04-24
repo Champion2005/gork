@@ -2,13 +2,22 @@
   "name": "gork",
   "version": "1.0.0",
   "scripts": {
-    "start": "tsx main.ts"
+    "start": "npm run site & npm run bot & wait",
+    "site": "bun --jsx site/main.tsx",
+    "bot": "bun --no-deprecation bot/main.ts",
+    "bot-node": "tsx --no-deprecation bot/main.ts"
   },
   "dependencies": {
-    "@openrouter/agent": "^0.4.0",
-    "@openrouter/sdk": "^0.12.20",
+    "@openrouter/sdk": "latest",
+    "b44ui": "latest",
     "discord.js": "latest",
     "dotenv": "latest",
-    "openai": "latest"
+    "exa-js": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
   }
 }
