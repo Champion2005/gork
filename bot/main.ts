@@ -24,6 +24,14 @@ bot.message(async chat => {
 
     sys += '\nfun facts you know about these users:\n' + memory.buildFacts([...new Set(['gork', ...chat.history.map(h => h.name), chat.next.name])])
 
-    return (await ai.get(sys, chat.history, chat.next)).slice(0, 1990)
+    const out = await ai.get(sys, chat.history, chat.next)
+    memory.addUsageSample({
+        user: chat.next.name,
+        inputTokens: out.usage.inputTokens,
+        outputTokens: out.usage.outputTokens,
+        cachedTokens: out.usage.cachedTokens,
+        cost: out.usage.cost,
+    })
+    return out.content.slice(0, 1990)
 })
 bot.ready()
