@@ -215,6 +215,15 @@ const ensureWriteAllowed = () => {
   return null
 }
 
+const getPublicOrigin = (req: Request) => {
+  if (trustProxyHeaders) {
+    const proto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || 'http'
+    const host = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+    if (host) return `${proto}://${host}`
+  }
+  return new URL(req.url).origin
+}
+
 console.log('server at :6767')
 Bun.serve({
   port: 6767,
@@ -249,7 +258,7 @@ Bun.serve({
       if (!discordOAuth.isDiscordOAuthConfigured()) return new Response('Discord OAuth is not configured', { status: 503 })
       if (!hitGuardedRateLimit('write', ip, 60, 60 * 1000)) return new Response('Too many requests', { status: 429 })
       const state = randomBytes(24).toString('hex')
-      const redirectUri = new URL('/auth/discord/callback', new URL(req.url).origin).toString()
+      const redirectUri = new URL('/auth/discord/callback', getPublicOrigin(req)).toString()
       const headers = new Headers({
         Location: discordOAuth.buildDiscordAuthorizeUrl({ state, redirectUri }),
         'Set-Cookie': makeStateCookie(state, req),
@@ -267,7 +276,7 @@ Bun.serve({
       const expectedState = cookies[OAUTH_STATE_COOKIE]
       if (!code) return new Response('Missing OAuth code', { status: 400 })
       if (!state || !expectedState || !secureEq(state, expectedState)) return new Response('Invalid OAuth state', { status: 400 })
-      const redirectUri = new URL('/auth/discord/callback', url.origin).toString()
+      const redirectUri = new URL('/auth/discord/callback', getPublicOrigin(req)).toString()
       try {
         const identity = await discordOAuth.exchangeDiscordCode({ code, redirectUri })
         const account = dashboardUsers.syncAccount({ discordId: identity.discordId, displayName: identity.displayName })
