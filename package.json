@@ -2,11 +2,12 @@
   "name": "gork",
   "version": "1.0.0",
   "scripts": {
+    "prestart": "npm run build",
     "start": "npm run site & npm run bot & wait",
     "site": "bun --jsx site/main.tsx",
     "bot": "bun --no-deprecation bot/main.ts",
     "bot-node": "tsx --no-deprecation bot/main.ts",
-    "build": "bunx tailwindcss -i site/input.css -o site/output.css --minify"
+    "build": "npx tailwindcss -i site/input.css -o site/output.css --minify"
   },
   "dependencies": {
     "@openrouter/sdk": "latest",
