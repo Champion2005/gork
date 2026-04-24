@@ -100,6 +100,7 @@ export const Page = () => {
     const [signupPassword, setSignupPassword] = useState('')
     const [signupConfirmPassword, setSignupConfirmPassword] = useState('')
     const [signupError, setSignupError] = useState('')
+    const [authView, setAuthView] = useState<'login' | 'signup'>('login')
     const [activeTab, setActiveTab] = useState<Tab>('facts')
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState('')
