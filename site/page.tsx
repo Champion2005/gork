@@ -483,12 +483,12 @@ export const Page = () => {
                             <p className='text-xs text-white/70'>
                                 {auth.legacyPasswordConfigured ? `Legacy bootstrap source: ${auth.legacyAuthSource}` : 'No legacy bootstrap password configured.'}
                             </p>
-                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                 placeholder='discord user id'
                                 value={loginDiscordId}
                                 onChange={(e) => setLoginDiscordId(e.target.value)}
                                 disabled={busy} />
-                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                 type='password'
                                 placeholder='password'
                                 value={loginPassword}
@@ -503,23 +503,23 @@ export const Page = () => {
                     <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
                         <h2 className='mb-4 text-lg font-semibold'>Sign Up</h2>
                         <div className='space-y-3'>
-                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                 placeholder='discord user id'
                                 value={signupDiscordId}
                                 onChange={(e) => setSignupDiscordId(e.target.value)}
                                 disabled={busy} />
-                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                 placeholder='display name'
                                 value={signupDisplayName}
                                 onChange={(e) => setSignupDisplayName(e.target.value)}
                                 disabled={busy} />
-                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                 type='password'
                                 placeholder='password'
                                 value={signupPassword}
                                 onChange={(e) => setSignupPassword(e.target.value)}
                                 disabled={busy} />
-                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                 type='password'
                                 placeholder='confirm password'
                                 value={signupConfirmPassword}
@@ -558,17 +558,17 @@ export const Page = () => {
                                     : 'You can edit the fact rows for your linked Discord ID.'}
                             </p>
                             <div className='grid gap-3 md:grid-cols-4'>
-                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                     value={addUserId}
                                     onChange={(e) => setAddUserId(e.target.value)}
                                     placeholder='discord user id'
                                     disabled={busy || auth.role == 'user'} />
-                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                     value={addDisplayName}
                                     onChange={(e) => setAddDisplayName(e.target.value)}
                                     placeholder='display name'
                                     disabled={busy} />
-                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm md:col-span-2'
+                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm md:col-span-2 text-white'
                                     value={addFact}
                                     onChange={(e) => setAddFact(e.target.value)}
                                     placeholder='fact'
@@ -610,7 +610,7 @@ export const Page = () => {
                                         <li key={`${user.id}-${idx}-${fact}`} className='rounded-md border border-slate-800 bg-slate-950 p-3'>
                                             {editing?.userId == user.id && editing.oldFact == fact
                                                 ? <div className='flex flex-col gap-2 sm:flex-row'>
-                                                    <input className='flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm'
+                                                    <input className='flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white'
                                                         value={editValue}
                                                         onChange={(e) => setEditValue(e.target.value)}
                                                         disabled={busy} />
@@ -698,23 +698,23 @@ export const Page = () => {
                         <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
                             <h2 className='mb-4 text-lg font-semibold'>Create Dashboard Account</h2>
                             <div className='grid gap-3 md:grid-cols-4'>
-                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                     placeholder='discord user id'
                                     value={createAccountDiscordId}
                                     onChange={(e) => setCreateAccountDiscordId(e.target.value)}
                                     disabled={busy} />
-                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                     placeholder='display name'
                                     value={createAccountDisplayName}
                                     onChange={(e) => setCreateAccountDisplayName(e.target.value)}
                                     disabled={busy} />
-                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                     placeholder='password'
                                     type='password'
                                     value={createAccountPassword}
                                     onChange={(e) => setCreateAccountPassword(e.target.value)}
                                     disabled={busy} />
-                                <select className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                <select className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
                                     value={createAccountRole}
                                     onChange={(e) => setCreateAccountRole(e.target.value as 'admin' | 'user')}
                                     disabled={busy}>
@@ -762,11 +762,11 @@ export const Page = () => {
                                     </thead>
                                     <tbody>
                                         {accounts.map((account) => (
-                                            <tr key={account.discordId} className='border-b border-slate-800/70 hover:bg-slate-950/40'>
+                                            <tr key={account.discordId} className='border-b border-slate-800/70 hover:bg-slate-950/40 text-white'>
                                                 <td className='px-4 py-3'>{account.discordId}</td>
                                                 <td className='px-4 py-3'>{account.displayName}</td>
                                                 <td className='px-4 py-3'>
-                                                    <select className='rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-sm'
+                                                    <select className='rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-white'
                                                         value={account.role}
                                                         onChange={(e) => changeAccountRole(account.discordId, e.target.value as 'admin' | 'user')}
                                                         disabled={busy}>
@@ -914,14 +914,14 @@ export const Page = () => {
                         <div className='grid gap-3 md:grid-cols-3'>
                             <label className='text-sm'>
                                 <span className='mb-1 block text-white/80'>Model</span>
-                                <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2'
+                                <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-white'
                                     value={cfg.model}
                                     onChange={(e) => setCfg({ ...cfg, model: e.target.value })}
                                     disabled={busy} />
                             </label>
                             <label className='text-sm'>
                                 <span className='mb-1 block text-white/80'>History depth</span>
-                                <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2'
+                                <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-white'
                                     type='number'
                                     value={cfg.historyDepth}
                                     onChange={(e) => setCfg({ ...cfg, historyDepth: Number(e.target.value) })}
@@ -929,7 +929,7 @@ export const Page = () => {
                             </label>
                             <label className='text-sm'>
                                 <span className='mb-1 block text-white/80'>Reply max length</span>
-                                <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2'
+                                <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-white'
                                     type='number'
                                     value={cfg.replyMaxLength}
                                     onChange={(e) => setCfg({ ...cfg, replyMaxLength: Number(e.target.value) })}
@@ -959,14 +959,14 @@ export const Page = () => {
                         <div className='mt-4 grid gap-3 md:grid-cols-2'>
                             <label className='text-sm'>
                                 <span className='mb-1 block text-white/80'>Muted user IDs (newline/comma separated)</span>
-                                <textarea className='h-32 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2'
+                                <textarea className='h-32 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-white'
                                     value={mutedInput}
                                     onChange={(e) => setMutedInput(e.target.value)}
                                     disabled={busy} />
                             </label>
                             <label className='text-sm'>
                                 <span className='mb-1 block text-white/80'>Denied user IDs (no response)</span>
-                                <textarea className='h-32 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2'
+                                <textarea className='h-32 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-white'
                                     value={deniedInput}
                                     onChange={(e) => setDeniedInput(e.target.value)}
                                     disabled={busy} />
@@ -991,7 +991,7 @@ export const Page = () => {
                                 </thead>
                                 <tbody>
                                     {auditRows.map((row) => (
-                                        <tr key={row.id} className='border-b border-slate-800/70 align-top hover:bg-slate-950/40'>
+                                        <tr key={row.id} className='border-b border-slate-800/70 align-top hover:bg-slate-950/40 text-white'>
                                             <td className='px-3 py-2 whitespace-nowrap'>{new Date(row.at).toLocaleString()}</td>
                                             <td className='px-3 py-2'>{row.actor}</td>
                                             <td className='px-3 py-2'>{row.action}</td>

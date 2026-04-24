@@ -1,6 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'crypto'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { storagePath } from './storage'
+import { existsSync, readFileSync } from 'fs'
+import { atomicWriteJson, storagePath } from './storage'
 
 type StoredPassword = {
     salt: string
@@ -95,6 +95,6 @@ export const setPassword = (currentPassword: string, newPassword: string) => {
 
     const updatedAt = new Date().toISOString()
     const { salt, hash } = hashPassword(next)
-    writeFileSync(AUTH_FILE, JSON.stringify({ salt, hash, updatedAt }, null, 2))
+    atomicWriteJson(AUTH_FILE, { salt, hash, updatedAt })
     return getAuthStatus()
 }

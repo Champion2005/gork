@@ -1,6 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'crypto'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { storagePath } from './storage'
+import { existsSync, readFileSync } from 'fs'
+import { atomicWriteJson, atomicWriteText, storagePath } from './storage'
 
 export type DashboardRole = 'admin' | 'user'
 type StoredAccount = {
@@ -20,7 +20,7 @@ const USERS_FILE = storagePath('dashboard-users.json')
 const MIN_PASSWORD_LENGTH = 12
 
 const ensureFile = () => {
-    if (!existsSync(USERS_FILE)) writeFileSync(USERS_FILE, '[]')
+    if (!existsSync(USERS_FILE)) atomicWriteText(USERS_FILE, '[]')
 }
 
 const normalizeDiscordId = (value: string) => value.trim()
@@ -63,12 +63,13 @@ const loadAll = (): StoredAccount[] => {
     try {
         const raw = JSON.parse(readFileSync(USERS_FILE, 'utf-8')) as unknown
         return Array.isArray(raw) ? raw.map(normalizeAccount).filter((row): row is StoredAccount => row !== null) : []
-    } catch {
-        return []
+    } catch (error) {
+        console.error('CRITICAL: Failed to parse dashboard-users.json', error)
+        throw error
     }
 }
 
-const saveAll = (rows: StoredAccount[]) => writeFileSync(USERS_FILE, JSON.stringify(rows, null, 2))
+const saveAll = (rows: StoredAccount[]) => atomicWriteJson(USERS_FILE, rows)
 
 const toPublic = ({ passwordHash: _passwordHash, passwordSalt: _passwordSalt, ...rest }: StoredAccount): DashboardAccount => rest
 

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { storagePath } from './storage'
+import { existsSync, readFileSync } from 'fs'
+import { atomicWriteJson, storagePath } from './storage'
 
 export type BotConfig = {
     model: string
@@ -55,7 +55,7 @@ const normalize = (value: unknown): BotConfig => {
 }
 
 const ensureConfigFile = () => {
-    if (!existsSync(CONFIG_FILE)) writeFileSync(CONFIG_FILE, JSON.stringify(defaults, null, 2))
+    if (!existsSync(CONFIG_FILE)) atomicWriteJson(CONFIG_FILE, defaults)
 }
 
 export const loadConfig = (): BotConfig => {
@@ -63,7 +63,7 @@ export const loadConfig = (): BotConfig => {
     return normalize(JSON.parse(readFileSync(CONFIG_FILE, 'utf-8')))
 }
 
-export const saveConfig = (next: BotConfig) => writeFileSync(CONFIG_FILE, JSON.stringify(normalize(next), null, 2))
+export const saveConfig = (next: BotConfig) => atomicWriteJson(CONFIG_FILE, normalize(next))
 
 export const updateConfig = (patch: Partial<BotConfig>) => {
     const current = loadConfig()

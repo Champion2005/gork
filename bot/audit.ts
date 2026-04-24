@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'fs'
-import { storagePath } from './storage'
+import { appendFileSync, existsSync, readFileSync } from 'fs'
+import { atomicWriteText, storagePath } from './storage'
 
 export type AuditEvent = {
     id: string
@@ -17,7 +17,7 @@ export type AuditEvent = {
 const AUDIT_FILE = storagePath('audit-log.jsonl')
 
 const ensureAuditFile = () => {
-    if (!existsSync(AUDIT_FILE)) writeFileSync(AUDIT_FILE, '')
+    if (!existsSync(AUDIT_FILE)) atomicWriteText(AUDIT_FILE, '')
 }
 
 const now = () => new Date().toISOString()

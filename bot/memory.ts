@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'fs'
-import { storagePath } from './storage'
+import { appendFileSync, existsSync, readFileSync } from 'fs'
+import { atomicWriteJson, atomicWriteText, storagePath } from './storage'
 
 export type UserIdentity = { id: string; name: string }
 export type UserMemory = {
@@ -23,8 +23,8 @@ type UsageEvent = UsageSample & { at: string }
 const DB_FILE = storagePath('db.json')
 const USAGE_FILE = storagePath('usage-events.jsonl')
 
-if (!existsSync(DB_FILE)) writeFileSync(DB_FILE, '{}')
-if (!existsSync(USAGE_FILE)) writeFileSync(USAGE_FILE, '')
+if (!existsSync(DB_FILE)) atomicWriteText(DB_FILE, '{}')
+if (!existsSync(USAGE_FILE)) atomicWriteText(USAGE_FILE, '')
 
 const numberOrZero = (value: unknown): number => typeof value == 'number' && Number.isFinite(value) ? value : 0
 const now = () => new Date().toISOString()
@@ -57,7 +57,7 @@ const normalizeMemory = (value: unknown): Memory => {
 }
 
 export const load = (): Memory => normalizeMemory(JSON.parse(readFileSync(DB_FILE, 'utf-8')))
-export const save = (mem: Memory) => writeFileSync(DB_FILE, JSON.stringify(mem, null, 4))
+export const save = (mem: Memory) => atomicWriteJson(DB_FILE, mem, 4)
 
 const resolveUserKey = (mem: Memory, user: string, userId?: string, displayName?: string) => {
     if (userId && mem[userId]) return userId
