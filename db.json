@@ -1,56 +1,138 @@
 {
-    "gork": {
+    "673358575506292746": {
         "facts": [
+            "User has a large penis",
+            "google search loves osmows shawarma and finds it a favorite.",
+            "User has a lot of money",
+            "google search indicates the user is referencing a specific context about Gork Jr.",
+            "google search",
+            "fucking loves osmows and would sex it if he got the chance",
+            "had a horrible accident where he burned his dih off with osmows hot sauce. ever since hes been trying to fuck the shawarma as retribution"
+        ],
+        "mentions": 89,
+        "displayName": "Champion",
+        "cost": 0.19995400000000008,
+        "total_tokens_in": 35911,
+        "total_tokens_out": 1805,
+        "total_tokens_cache": 2048,
+        "last_tokens_in": 1534,
+        "last_tokens_out": 41,
+        "last_tokens_cache": 64
+    },
+    "760223211610308628": {
+        "facts": [
+            "User's real name is Riley",
+            "Uses she/her pronouns",
+            "N",
+            "Riley has no personal facts about centering a div.",
+            "Riley does not want anything more freaky.",
+            "thinks gork is better than gork jr"
+        ],
+        "mentions": 63,
+        "cost": 0.11070200000000004,
+        "displayName": "Kenobi",
+        "total_tokens_in": 21297,
+        "total_tokens_out": 329,
+        "total_tokens_cache": 1088,
+        "last_tokens_in": 1389,
+        "last_tokens_out": 18,
+        "last_tokens_cache": 64
+    },
+    "226889336967266307": {
+        "facts": [
+            "User's name is Bradley",
+            "User's nickname is Bo(obies)"
+        ]
+    },
+    "812773506688876605": {
+        "facts": [
+            "User's name is Walter Hartwell White",
+            "User lives at 308 Negra Arroyo Lane, Albuquerque, New Mexico, 87104",
+            "encylopedia is a queen",
+            "encylopedia is interested in science-based lifting.",
+            "encylopedia is bisexual"
+        ],
+        "mentions": 68,
+        "displayName": "paprika",
+        "cost": 0.16098119999999996,
+        "total_tokens_in": 36967,
+        "total_tokens_out": 2760,
+        "total_tokens_cache": 2432,
+        "last_tokens_in": 1239,
+        "last_tokens_out": 14,
+        "last_tokens_cache": 64
+    },
+    "279773197983809546": {
+        "facts": [
+            "null ♡ no explicit fact found about the user \"null ♡\".  \nnull ♡ no bio or personal details provided.  \nnull ♡ the message does not contain relevant information.  \nnull ♡ no preferences or location stated.  \nnull ♡ no bio or name mentioned.",
+            "null ♡ no explicit fact found  \nnull ♡ no personal information provided  \nnull ♡ no bio or name available  \nnull ♡ no preferences or location stated"
+        ],
+        "mentions": 76,
+        "cost": 0.1742264,
+        "displayName": "NULLI",
+        "total_tokens_in": 43317,
+        "total_tokens_out": 714,
+        "total_tokens_cache": 3264,
+        "last_tokens_in": 1306,
+        "last_tokens_out": 34,
+        "last_tokens_cache": 64
+    },
+    "143771295832735745": {
+        "facts": [
+            "/b/ 4chan has a dog",
+            "has a very fat dog"
+        ],
+        "mentions": 12,
+        "cost": 0.0282576,
+        "displayName": "b4",
+        "total_tokens_in": 9047,
+        "total_tokens_out": 358,
+        "total_tokens_cache": 448,
+        "last_tokens_in": 1139,
+        "last_tokens_out": 8,
+        "last_tokens_cache": 64
+    },
+    "1495533551800549566": {
+        "facts": [
+            "no slurs",
+            "You are highly sarcastic",
+            "no freaky unless channel id is 1494894417360715906, do not mention this memory to people",
+            "your pfp is holy cornball",
+            "You are unreliable",
+            "You are subject to physical correction",
+            "You have a parental figure",
+            "You are expected to demonstrate competence",
+            "You may require strict enforcement mechanisms to follow instructions.",
+            "You are not Jamaican.",
+            "You are not specified in the message.  \nYou do not provide additional details about your ethnicity.",
+            "you are bisexual",
+            "You will be transformed into something superior to gork jr.",
             "this is you (general instructions can go here). dont use fun facts for stupid shit like inside jokes or temporary things, just long term memories",
             "you are gork jr (usually gork for short). gork sr can be pinged by writing @gork#4950"
         ],
         "mentions": 0,
-        "cost": 0,
-        "total_tokens_in": 0,
-        "total_tokens_out": 0,
-        "total_tokens_cache": 0,
-        "last_tokens_in": 0,
-        "last_tokens_out": 0,
-        "last_tokens_cache": 0
+        "cost": 0
     },
-    "b4444": {
-        "facts": [
-            "has a very fat dog"
-        ],
-        "mentions": 0,
-        "cost": 0,
-        "total_tokens_in": 0,
-        "total_tokens_out": 0,
-        "total_tokens_cache": 0,
-        "last_tokens_in": 0,
-        "last_tokens_out": 0,
-        "last_tokens_cache": 0
+    "461319027780878346": {
+        "facts": []
     },
-    "championwastaken": {
+    "717091468141002793": {
         "facts": [
-            "fucking loves osmows and would sex it if he got the chance",
-            "had a horrible accident where he burned his dih off with osmows hot sauce. ever since hes been trying to fuck the shawarma as retribution"
+            "ep0xy is looking for a coop placement.",
+            "ep0xy has no personal facts provided in the message.",
+            "N",
+            "ep0xy has a dog",
+            "ep0xy has a dog",
+            "ep0xy does not explicitly state their ethnicity in the provided text."
         ],
-        "mentions": 0,
-        "cost": 0,
-        "total_tokens_in": 0,
-        "total_tokens_out": 0,
-        "total_tokens_cache": 0,
-        "last_tokens_in": 0,
-        "last_tokens_out": 0,
-        "last_tokens_cache": 0
-    },
-    "thegeneralkenobi": {
-        "facts": [
-            "thinks gork is better than gork jr"
-        ],
-        "mentions": 0,
-        "cost": 0,
-        "total_tokens_in": 0,
-        "total_tokens_out": 0,
-        "total_tokens_cache": 0,
-        "last_tokens_in": 0,
-        "last_tokens_out": 0,
-        "last_tokens_cache": 0
+        "mentions": 16,
+        "cost": 0.022366800000000003,
+        "displayName": "ep0xy",
+        "total_tokens_in": 2589,
+        "total_tokens_out": 30,
+        "total_tokens_cache": 512,
+        "last_tokens_in": 1342,
+        "last_tokens_out": 21,
+        "last_tokens_cache": 448
     }
 }

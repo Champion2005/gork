@@ -56,54 +56,8 @@ const normalizeMemory = (value: unknown): Memory => {
     return Object.fromEntries(Object.entries(raw).map(([key, row]) => [key, normalizeUser(row)]))
 }
 
-const LEGACY_MEMORY_CLEANUP_MARKER = storagePath('memory-cleanup-v1.txt')
-const LEGACY_MEMORY_SNAPSHOT: Record<string, string[]> = {
-    gork: [
-        'this is you (general instructions can go here). dont use fun facts for stupid shit like inside jokes or temporary things, just long term memories',
-        'you are gork jr (usually gork for short). gork sr can be pinged by writing @gork#4950',
-    ],
-    b4444: ['has a very fat dog'],
-    championwastaken: [
-        'fucking loves osmows and would sex it if he got the chance',
-        'had a horrible accident where he burned his dih off with osmows hot sauce. ever since hes been trying to fuck the shawarma as retribution',
-    ],
-    thegeneralkenobi: ['thinks gork is better than gork jr'],
-}
-
 const readMemoryFile = (): Memory => normalizeMemory(JSON.parse(readFileSync(DB_FILE, 'utf-8')))
 const writeMemoryFile = (mem: Memory) => atomicWriteJson(DB_FILE, mem, 4)
-
-const applyLegacyMemoryCleanup = (mem: Memory) => {
-    const cleaned: Memory = {}
-    let changed = false
-
-    for (const [userId, facts] of Object.entries(LEGACY_MEMORY_SNAPSHOT)) {
-        const row = normalizeUser(mem[userId] ?? { facts: [] })
-        cleaned[userId] = { ...row, facts: [...facts] }
-        if (!mem[userId]) changed = true
-        if (row.facts.length !== facts.length || row.facts.some((fact, index) => fact !== facts[index])) {
-            changed = true
-        }
-    }
-
-    if (Object.keys(mem).some((key) => !(key in LEGACY_MEMORY_SNAPSHOT))) {
-        changed = true
-    }
-
-    return { cleaned, changed }
-}
-
-const runLegacyMemoryCleanup = () => {
-    if (existsSync(LEGACY_MEMORY_CLEANUP_MARKER)) return
-    const current = readMemoryFile()
-    const { cleaned, changed } = applyLegacyMemoryCleanup(current)
-    if (changed) writeMemoryFile(cleaned)
-    const legacyExport = storagePath('memories.json')
-    if (existsSync(legacyExport)) unlinkSync(legacyExport)
-    atomicWriteText(LEGACY_MEMORY_CLEANUP_MARKER, new Date().toISOString())
-}
-
-runLegacyMemoryCleanup()
 
 export const load = (): Memory => readMemoryFile()
 export const save = (mem: Memory) => atomicWriteJson(DB_FILE, mem, 4)
