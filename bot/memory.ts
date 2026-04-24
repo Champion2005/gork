@@ -65,6 +65,11 @@ export const save = (mem: Memory) => atomicWriteJson(DB_FILE, mem, 4)
 const resolveUserKey = (mem: Memory, user: string, userId?: string, displayName?: string) => {
     if (userId && mem[userId]) return userId
     if (userId) return userId
+
+    // If user string contains an ID like "Name (123...)"
+    const idInUser = user.match(/\((\d{17,})\)/)
+    if (idInUser && idInUser[1]) return idInUser[1]
+
     if (mem[user]) return user
 
     const byDisplayName = Object.entries(mem)

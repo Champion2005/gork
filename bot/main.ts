@@ -20,8 +20,8 @@ ai.tool('web-search', 'search a question via exa', ['query'], async ({ query }) 
     return res.results
 })
 
-ai.tool('add-fun-fact', 'Adds a permanent personal fact about a user to your memory. ONLY extract facts explicitly stated by the user in the CURRENT conversation. DO NOT add temporary info, generic greetings, or meta-commentary. Keep facts concise and high-value.', ['user', 'fact'], ({ user, fact }) => {
-    const out = memory.addFact({ user, fact, displayName: user })
+ai.tool('add-fun-fact', 'Adds a permanent personal fact about a user to your memory. ONLY extract facts explicitly stated by the user in the CURRENT conversation. Use the numeric userId from the [CURRENT MESSAGE] tag if available. DO NOT add temporary info or generic greetings.', ['user', 'fact', 'userId'], ({ user, fact, userId }) => {
+    const out = memory.addFact({ user, fact, userId, displayName: user })
     audit.logAudit({
         actor: 'gork-bot',
         ip: '127.0.0.1',
@@ -30,7 +30,7 @@ ai.tool('add-fun-fact', 'Adds a permanent personal fact about a user to your mem
         displayName: out.displayName,
         after: fact
     })
-    return `Added fact for ${out.displayName}`
+    return `Added fact for ${out.displayName} (${out.userId})`
 })
 
 bot.message(async chat => {
