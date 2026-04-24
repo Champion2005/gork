@@ -11,4 +11,5 @@ bot-config.json
 audit-log.jsonl
 usage-events.jsonl
 dashboard-auth.json
+dashboard-users.json
 dashboard-session-secret.txt

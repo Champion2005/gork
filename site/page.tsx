@@ -3,11 +3,15 @@ import { useEffect, useMemo, useState } from 'react'
 
 type AuthState = {
     authenticated: boolean
-    actor: string | null
+    discordId: string | null
+    displayName: string | null
+    role: 'admin' | 'user' | null
     csrfToken: string | null
-    passwordConfigured: boolean
-    authSource: 'stored' | 'env' | 'legacy-env' | 'none'
+    sessionSource: 'account' | 'legacy' | null
+    legacyPasswordConfigured: boolean
+    legacyAuthSource: 'stored' | 'env' | 'legacy-env' | 'none'
     updatedAt: string | null
+    accountCount: number
 }
 type UserRow = {
     id: string
@@ -18,6 +22,14 @@ type UserRow = {
     total_tokens_in: number
     total_tokens_out: number
     total_tokens_cache: number
+}
+type DashboardAccountRow = {
+    discordId: string
+    displayName: string
+    role: 'admin' | 'user'
+    createdAt: string
+    updatedAt: string
+    lastSeenAt?: string
 }
 type BotConfig = {
     model: string
@@ -49,7 +61,7 @@ type Analytics = {
     topUsers7d: { userId: string; displayName: string; cost: number; mentions: number }[]
 }
 
-type Tab = 'facts' | 'leaderboard' | 'analytics' | 'auth' | 'config' | 'audit'
+type Tab = 'facts' | 'leaderboard' | 'account' | 'users' | 'analytics' | 'config' | 'audit'
 type SortKey = 'displayName' | 'mentions' | 'total_tokens_in' | 'total_tokens_out' | 'total_tokens_cache' | 'cost'
 type SortDirection = 'asc' | 'desc'
 
@@ -68,21 +80,36 @@ const fmtJson = (value: unknown) => {
 }
 
 export const Page = () => {
-    const [auth, setAuth] = useState<AuthState>({ authenticated: false, actor: null, csrfToken: null, passwordConfigured: false, authSource: 'none', updatedAt: null })
-    const [loginActor, setLoginActor] = useState('admin')
+    const [auth, setAuth] = useState<AuthState>({
+        authenticated: false,
+        discordId: null,
+        displayName: null,
+        role: null,
+        csrfToken: null,
+        sessionSource: null,
+        legacyPasswordConfigured: false,
+        legacyAuthSource: 'none',
+        updatedAt: null,
+        accountCount: 0,
+    })
+    const [loginDiscordId, setLoginDiscordId] = useState('')
     const [loginPassword, setLoginPassword] = useState('')
     const [loginError, setLoginError] = useState('')
+    const [signupDiscordId, setSignupDiscordId] = useState('')
+    const [signupDisplayName, setSignupDisplayName] = useState('')
+    const [signupPassword, setSignupPassword] = useState('')
+    const [signupConfirmPassword, setSignupConfirmPassword] = useState('')
+    const [signupError, setSignupError] = useState('')
     const [activeTab, setActiveTab] = useState<Tab>('facts')
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState('')
 
     const [users, setUsers] = useState<UserRow[]>([])
+    const [accounts, setAccounts] = useState<DashboardAccountRow[]>([])
     const [analytics, setAnalytics] = useState<Analytics | null>(null)
     const [auditRows, setAuditRows] = useState<AuditRow[]>([])
     const [cfg, setCfg] = useState<BotConfig | null>(null)
 
-    const [createUserId, setCreateUserId] = useState('')
-    const [createUserName, setCreateUserName] = useState('')
     const [addUserId, setAddUserId] = useState('')
     const [addDisplayName, setAddDisplayName] = useState('')
     const [addFact, setAddFact] = useState('')
@@ -93,9 +120,15 @@ export const Page = () => {
     const [sortState, setSortState] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'cost', direction: 'desc' })
     const [mutedInput, setMutedInput] = useState('')
     const [deniedInput, setDeniedInput] = useState('')
-    const [currentPassword, setCurrentPassword] = useState('')
-    const [newPassword, setNewPassword] = useState('')
-    const [confirmPassword, setConfirmPassword] = useState('')
+    const [accountCurrentPassword, setAccountCurrentPassword] = useState('')
+    const [accountNewPassword, setAccountNewPassword] = useState('')
+    const [accountConfirmPassword, setAccountConfirmPassword] = useState('')
+    const [bootstrapCurrentPassword, setBootstrapCurrentPassword] = useState('')
+    const [bootstrapNewPassword, setBootstrapNewPassword] = useState('')
+    const [createAccountDiscordId, setCreateAccountDiscordId] = useState('')
+    const [createAccountDisplayName, setCreateAccountDisplayName] = useState('')
+    const [createAccountPassword, setCreateAccountPassword] = useState('')
+    const [createAccountRole, setCreateAccountRole] = useState<'admin' | 'user'>('user')
 
     const csrfHeaders = () => auth.csrfToken ? { 'x-csrf-token': auth.csrfToken } : {}
 
@@ -121,6 +154,13 @@ export const Page = () => {
         setUsers(Array.isArray(data.users) ? data.users : [])
     }
 
+    const loadAccounts = async () => {
+        const res = await fetch('/accounts')
+        if (!res.ok) throw new Error(await res.text())
+        const data = await res.json()
+        setAccounts(Array.isArray(data.accounts) ? data.accounts : [])
+    }
+
     const loadAnalytics = async () => {
         const res = await fetch('/analytics')
         if (!res.ok) throw new Error(await res.text())
@@ -144,7 +184,15 @@ export const Page = () => {
     }
 
     const reloadAll = async () => {
-        await Promise.all([loadUsers(), loadAnalytics(), loadAudit(), loadConfig()])
+        await loadUsers()
+        if (auth.role == 'admin') {
+            await Promise.all([loadAccounts(), loadAnalytics(), loadAudit(), loadConfig()])
+        } else {
+            setAccounts([])
+            setAnalytics(null)
+            setAuditRows([])
+            setCfg(null)
+        }
     }
 
     const run = async (action: () => Promise<void>) => {
@@ -161,38 +209,65 @@ export const Page = () => {
 
     const doLogin = () => run(async () => {
         setLoginError('')
-        await postJson('/login', { actor: loginActor.trim() || 'admin', password: loginPassword })
+        await postJson('/login', { discordId: loginDiscordId.trim(), password: loginPassword })
         setLoginPassword('')
         await refreshAuth()
-        await reloadAll()
+    })
+
+    const doSignup = () => run(async () => {
+        setSignupError('')
+        const discordId = signupDiscordId.trim()
+        const displayName = signupDisplayName.trim()
+        const password = signupPassword
+        if (!discordId) throw new Error('Discord ID is required')
+        if (signupPassword !== signupConfirmPassword) throw new Error('Passwords do not match')
+        await postJson('/signup', { discordId, displayName, password })
+        setSignupDiscordId('')
+        setSignupDisplayName('')
+        setSignupPassword('')
+        setSignupConfirmPassword('')
+        await refreshAuth()
     })
 
     const doLogout = () => run(async () => {
         await postJson('/logout', {})
         setUsers([])
+        setAccounts([])
         setAnalytics(null)
         setAuditRows([])
         setCfg(null)
+        setAddUserId('')
+        setAddDisplayName('')
+        setAddFact('')
+        setEditing(null)
+        setEditValue('')
+        setSelectedFacts({})
+        setLoginDiscordId('')
+        setSignupDiscordId('')
+        setSignupDisplayName('')
+        setLoginPassword('')
+        setSignupPassword('')
+        setSignupConfirmPassword('')
+        setAccountCurrentPassword('')
+        setAccountNewPassword('')
+        setAccountConfirmPassword('')
+        setBootstrapCurrentPassword('')
+        setBootstrapNewPassword('')
+        setCreateAccountDiscordId('')
+        setCreateAccountDisplayName('')
+        setCreateAccountPassword('')
+        setCreateAccountRole('user')
         await refreshAuth()
     })
 
     const createFact = () => run(async () => {
-        const userId = addUserId.trim()
+        const userId = auth.role == 'admin' ? addUserId.trim() : (auth.discordId ?? addUserId.trim())
         const displayName = addDisplayName.trim()
         const fact = addFact.trim()
-        if (!fact || !userId) throw new Error('User ID and fact are required')
+        if (!fact) throw new Error('Fact is required')
+        if (!userId) throw new Error('Discord user ID is required')
         await postJson('/facts/add', { userId, displayName, user: displayName || userId, fact })
         setAddFact('')
-        await reloadAll()
-    })
-
-    const createUser = () => run(async () => {
-        const userId = createUserId.trim()
-        const displayName = createUserName.trim()
-        if (!userId) throw new Error('User ID is required')
-        await postJson('/users/create', { userId, displayName })
-        setCreateUserId('')
-        setCreateUserName('')
         await reloadAll()
     })
 
@@ -227,6 +302,56 @@ export const Page = () => {
         await reloadAll()
     })
 
+    const saveAccountPassword = () => run(async () => {
+        if (!accountNewPassword.trim()) throw new Error('New password is required')
+        if (accountNewPassword !== accountConfirmPassword) throw new Error('Passwords do not match')
+        await postJson('/account/password', {
+            currentPassword: accountCurrentPassword,
+            newPassword: accountNewPassword,
+        })
+        setAccountCurrentPassword('')
+        setAccountNewPassword('')
+        setAccountConfirmPassword('')
+        await refreshAuth()
+        await reloadAll()
+    })
+
+    const saveBootstrapPassword = () => run(async () => {
+        if (!bootstrapNewPassword.trim()) throw new Error('New password is required')
+        await postJson('/auth/password', {
+            currentPassword: bootstrapCurrentPassword,
+            newPassword: bootstrapNewPassword,
+        })
+        setBootstrapCurrentPassword('')
+        setBootstrapNewPassword('')
+        await refreshAuth()
+    })
+
+    const createDashboardAccount = () => run(async () => {
+        const discordId = createAccountDiscordId.trim()
+        const displayName = createAccountDisplayName.trim()
+        const password = createAccountPassword
+        if (!discordId) throw new Error('Discord ID is required')
+        await postJson('/accounts', {
+            discordId,
+            displayName,
+            password,
+            role: createAccountRole,
+        })
+        setCreateAccountDiscordId('')
+        setCreateAccountDisplayName('')
+        setCreateAccountPassword('')
+        setCreateAccountRole('user')
+        await reloadAll()
+    })
+
+    const changeAccountRole = (discordId: string, role: 'admin' | 'user') => run(async () => {
+        await postJson('/accounts/role', { discordId, role })
+        const selfChange = discordId == auth.discordId
+        await refreshAuth()
+        if (!selfChange) await reloadAll()
+    })
+
     const saveConfig = () => run(async () => {
         if (!cfg) return
         const next: BotConfig = {
@@ -239,20 +364,6 @@ export const Page = () => {
         setMutedInput((updated.mutedUserIds ?? []).join('\n'))
         setDeniedInput((updated.deniedUserIds ?? []).join('\n'))
         await reloadAll()
-    })
-
-    const savePassword = () => run(async () => {
-        if (!newPassword.trim()) throw new Error('New password is required')
-        if (newPassword !== confirmPassword) throw new Error('Passwords do not match')
-        const updated = await postJson('/auth/password', {
-            currentPassword,
-            newPassword,
-        }) as Pick<AuthState, 'passwordConfigured' | 'authSource' | 'updatedAt'>
-        setAuth((prev) => ({ ...prev, ...updated }))
-        setCurrentPassword('')
-        setNewPassword('')
-        setConfirmPassword('')
-        await refreshAuth()
     })
 
     const toggleFactSelection = (userId: string, fact: string, checked: boolean) => {
@@ -290,7 +401,37 @@ export const Page = () => {
     useEffect(() => {
         if (!auth.authenticated) return
         void reloadAll()
-    }, [auth.authenticated])
+    }, [auth.authenticated, auth.role])
+
+    useEffect(() => {
+        if (auth.role == 'user' && auth.discordId) {
+            setAddUserId(auth.discordId)
+            if (!addDisplayName.trim() && auth.displayName) setAddDisplayName(auth.displayName)
+        }
+    }, [auth.discordId, auth.displayName, auth.role])
+
+    useEffect(() => {
+        const visibleTabs: Tab[] = auth.role == 'admin'
+            ? ['facts', 'leaderboard', 'account', 'users', 'analytics', 'config', 'audit']
+            : ['facts', 'leaderboard', 'account']
+        if (!visibleTabs.includes(activeTab)) setActiveTab('facts')
+    }, [activeTab, auth.role, auth.authenticated])
+
+    const navTabs: [Tab, string][] = auth.role == 'admin'
+        ? [
+            ['facts', 'Facts'],
+            ['leaderboard', 'Leaderboard'],
+            ['account', 'Account'],
+            ['users', 'Dashboard Users'],
+            ['analytics', 'Analytics'],
+            ['config', 'Config & Safety'],
+            ['audit', 'Audit Log'],
+        ]
+        : [
+            ['facts', 'Facts'],
+            ['leaderboard', 'Leaderboard'],
+            ['account', 'Account'],
+        ]
 
     return <>
         <head>
@@ -307,52 +448,80 @@ export const Page = () => {
                             <h1 className='text-2xl font-semibold'>Gork Admin Dashboard</h1>
                             <p className='mt-2 text-sm text-white/80'>Facts, usage analytics, config, and security controls.</p>
                             {auth.authenticated && <p className='mt-2 text-xs text-white/70'>
-                                Auth source: <span className='font-medium text-white'>{auth.authSource}</span>
+                                Signed in as <span className='font-medium text-white'>{auth.displayName ?? auth.discordId}</span>
+                                {' '}· <span className='font-medium text-white'>{auth.role}</span>
+                                {' '}· source <span className='font-medium text-white'>{auth.sessionSource}</span>
                                 {auth.updatedAt && <span> · updated {new Date(auth.updatedAt).toLocaleString()}</span>}
                             </p>}
                         </div>
                         {auth.authenticated && <div className='text-right text-sm text-white/80'>
-                            <p>Signed in as <span className='font-semibold text-white'>{auth.actor}</span></p>
+                            <p>{auth.discordId}</p>
                             <button className='mt-2 rounded-md border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800' onClick={doLogout} disabled={busy}>Logout</button>
                         </div>}
                     </div>
                 </header>
 
-                {!auth.authenticated && <section className='mx-auto max-w-md rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
-                    <h2 className='mb-4 text-lg font-semibold'>Login</h2>
-                    <div className='space-y-3'>
-                        <p className='text-xs text-white/70'>
-                            {auth.passwordConfigured ? `Password source: ${auth.authSource}` : 'No dashboard password configured yet.'}
-                        </p>
-                        <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                            placeholder='actor name'
-                            value={loginActor}
-                            onChange={(e) => setLoginActor(e.target.value)}
-                            disabled={busy} />
-                        <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                            type='password'
-                            placeholder='dashboard password'
-                            value={loginPassword}
-                            onChange={(e) => setLoginPassword(e.target.value)}
-                            disabled={busy} />
-                        <button className='w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60' onClick={doLogin} disabled={busy}>
-                            Sign In
-                        </button>
-                        {loginError && <p className='text-sm text-red-300'>{loginError}</p>}
-                        {error && <p className='text-sm text-red-300'>{error}</p>}
-                    </div>
+                {!auth.authenticated && <section className='grid gap-4 lg:grid-cols-2'>
+                    <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
+                        <h2 className='mb-4 text-lg font-semibold'>Login</h2>
+                        <div className='space-y-3'>
+                            <p className='text-xs text-white/70'>
+                                {auth.legacyPasswordConfigured ? `Legacy bootstrap source: ${auth.legacyAuthSource}` : 'No legacy bootstrap password configured.'}
+                            </p>
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                placeholder='discord user id'
+                                value={loginDiscordId}
+                                onChange={(e) => setLoginDiscordId(e.target.value)}
+                                disabled={busy} />
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                type='password'
+                                placeholder='password'
+                                value={loginPassword}
+                                onChange={(e) => setLoginPassword(e.target.value)}
+                                disabled={busy} />
+                            <button className='w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60' onClick={doLogin} disabled={busy}>
+                                Sign In
+                            </button>
+                            {loginError && <p className='text-sm text-red-300'>{loginError}</p>}
+                        </div>
+                    </article>
+                    <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
+                        <h2 className='mb-4 text-lg font-semibold'>Sign Up</h2>
+                        <div className='space-y-3'>
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                placeholder='discord user id'
+                                value={signupDiscordId}
+                                onChange={(e) => setSignupDiscordId(e.target.value)}
+                                disabled={busy} />
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                placeholder='display name'
+                                value={signupDisplayName}
+                                onChange={(e) => setSignupDisplayName(e.target.value)}
+                                disabled={busy} />
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                type='password'
+                                placeholder='password'
+                                value={signupPassword}
+                                onChange={(e) => setSignupPassword(e.target.value)}
+                                disabled={busy} />
+                            <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                type='password'
+                                placeholder='confirm password'
+                                value={signupConfirmPassword}
+                                onChange={(e) => setSignupConfirmPassword(e.target.value)}
+                                disabled={busy} />
+                            <button className='w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60' onClick={doSignup} disabled={busy}>
+                                Create Account
+                            </button>
+                            {signupError && <p className='text-sm text-red-300'>{signupError}</p>}
+                        </div>
+                    </article>
+                    {error && <section className='rounded-xl border border-red-800 bg-red-950/40 p-3 text-sm text-red-200 lg:col-span-2'>{error}</section>}
                 </section>}
 
                 {auth.authenticated && <>
                     <nav className='flex flex-wrap gap-2 rounded-xl border border-slate-800 bg-slate-900 p-3 text-white'>
-                        {[
-                            ['facts', 'Facts'],
-                            ['leaderboard', 'Leaderboard'],
-                            ['analytics', 'Analytics'],
-                            ['auth', 'Auth'],
-                            ['config', 'Config & Safety'],
-                            ['audit', 'Audit Log'],
-                        ].map(([key, label]) => (
+                        {navTabs.map(([key, label]) => (
                             <button
                                 key={key}
                                 className={`rounded-md px-4 py-2 text-sm font-medium transition ${activeTab == key ? 'bg-blue-600' : 'border border-slate-700 hover:bg-slate-800'}`}
@@ -367,39 +536,18 @@ export const Page = () => {
 
                     {activeTab == 'facts' && <section className='space-y-4'>
                         <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
-                            <h2 className='mb-4 text-lg font-semibold'>Create User</h2>
+                            <h2 className='mb-4 text-lg font-semibold'>Facts</h2>
                             <p className='mb-4 text-sm text-white/75'>
-                                Create an identity row before any facts exist. The bot will keep display names refreshed when it sees the user again.
+                                {auth.role == 'admin'
+                                    ? 'Admins can edit any Discord-linked fact row.'
+                                    : 'You can edit the fact rows for your linked Discord ID.'}
                             </p>
-                            <div className='grid gap-3 md:grid-cols-2'>
-                                <input
-                                    className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                                    value={createUserId}
-                                    onChange={(e) => setCreateUserId(e.target.value)}
-                                    placeholder='discord user id'
-                                    disabled={busy}
-                                />
-                                <input
-                                    className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                                    value={createUserName}
-                                    onChange={(e) => setCreateUserName(e.target.value)}
-                                    placeholder='display name'
-                                    disabled={busy}
-                                />
-                            </div>
-                            <button className='mt-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60' onClick={createUser} disabled={busy}>
-                                Create User
-                            </button>
-                        </article>
-
-                        <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
-                            <h2 className='mb-4 text-lg font-semibold'>Add Fact</h2>
                             <div className='grid gap-3 md:grid-cols-4'>
                                 <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
                                     value={addUserId}
                                     onChange={(e) => setAddUserId(e.target.value)}
-                                    placeholder='user id (required)'
-                                    disabled={busy} />
+                                    placeholder='discord user id'
+                                    disabled={busy || auth.role == 'user'} />
                                 <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
                                     value={addDisplayName}
                                     onChange={(e) => setAddDisplayName(e.target.value)}
@@ -416,14 +564,15 @@ export const Page = () => {
                             </button>
                         </article>
 
-                        {users.map((user) => (
-                            <article key={user.id} className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
+                        {users.map((user) => {
+                            const canEdit = auth.role == 'admin' || user.id == auth.discordId
+                            return <article key={user.id} className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
                                 <div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
                                     <div>
                                         <h3 className='text-base font-semibold'>{user.displayName}</h3>
                                         <p className='text-xs text-white/70'>{user.id}</p>
                                     </div>
-                                    <div className='flex gap-2'>
+                                    {canEdit && <div className='flex gap-2'>
                                         <button className='rounded-md border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800'
                                             onClick={() => { setAddUserId(user.id); setAddDisplayName(user.displayName) }}
                                             disabled={busy}>
@@ -437,7 +586,7 @@ export const Page = () => {
                                             onClick={() => cleanupLowValue(user.id)} disabled={busy}>
                                             Cleanup Low-Value
                                         </button>
-                                    </div>
+                                    </div>}
                                 </div>
 
                                 {user.facts.length === 0 && <p className='text-sm text-white/70'>No facts saved.</p>}
@@ -463,7 +612,7 @@ export const Page = () => {
                                                         />
                                                         <span>{fact}</span>
                                                     </label>
-                                                    <div className='flex gap-2'>
+                                                    {canEdit && <div className='flex gap-2'>
                                                         <button className='rounded-md border border-slate-700 px-3 py-1 text-xs hover:bg-slate-800'
                                                             onClick={() => { setEditing({ userId: user.id, oldFact: fact }); setEditValue(fact) }}
                                                             disabled={busy}>
@@ -474,12 +623,12 @@ export const Page = () => {
                                                             disabled={busy}>
                                                             Delete
                                                         </button>
-                                                    </div>
+                                                    </div>}
                                                 </div>}
                                         </li>
                                     ))}
                                 </ul>
-                                {(selectedFacts[user.id] ?? []).length > 0 && <button
+                                {auth.role == 'admin' && (selectedFacts[user.id] ?? []).length > 0 && <button
                                     className='mt-3 rounded-md border border-red-800 px-3 py-2 text-xs text-red-200 hover:bg-red-950'
                                     onClick={() => bulkDelete(user.id)}
                                     disabled={busy}
@@ -487,7 +636,7 @@ export const Page = () => {
                                     Bulk Delete Selected ({(selectedFacts[user.id] ?? []).length})
                                 </button>}
                             </article>
-                        ))}
+                        })}
                     </section>}
 
                     {activeTab == 'leaderboard' && <section className='overflow-hidden rounded-xl border border-slate-800 bg-slate-900 text-white'>
@@ -503,7 +652,7 @@ export const Page = () => {
                                             ['total_tokens_cache', 'Tokens Cache'],
                                             ['cost', 'Cost'],
                                         ].map(([key, label]) => (
-                                            <th key={key} className='border-b border-slate-800 px-4 py-3 text-left font-medium'>
+                                            <th key={key} className='border-b border-slate-800 px-4 py-3 text-left font-medium text-white'>
                                                 <button className='inline-flex items-center gap-2 hover:text-white' onClick={() => setSort(key as SortKey)}>
                                                     {label}<span className='text-xs text-white/70'>{sortArrow(key as SortKey)}</span>
                                                 </button>
@@ -530,7 +679,74 @@ export const Page = () => {
                         </div>
                     </section>}
 
-                    {activeTab == 'analytics' && <section className='space-y-4'>
+                    {activeTab == 'users' && auth.role == 'admin' && <section className='space-y-4'>
+                        <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
+                            <h2 className='mb-4 text-lg font-semibold'>Create Dashboard Account</h2>
+                            <div className='grid gap-3 md:grid-cols-4'>
+                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                    placeholder='discord user id'
+                                    value={createAccountDiscordId}
+                                    onChange={(e) => setCreateAccountDiscordId(e.target.value)}
+                                    disabled={busy} />
+                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                    placeholder='display name'
+                                    value={createAccountDisplayName}
+                                    onChange={(e) => setCreateAccountDisplayName(e.target.value)}
+                                    disabled={busy} />
+                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                    placeholder='password'
+                                    type='password'
+                                    value={createAccountPassword}
+                                    onChange={(e) => setCreateAccountPassword(e.target.value)}
+                                    disabled={busy} />
+                                <select className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                    value={createAccountRole}
+                                    onChange={(e) => setCreateAccountRole(e.target.value as 'admin' | 'user')}
+                                    disabled={busy}>
+                                    <option value='user'>user</option>
+                                    <option value='admin'>admin</option>
+                                </select>
+                            </div>
+                            <button className='mt-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60' onClick={createDashboardAccount} disabled={busy}>
+                                Create Account
+                            </button>
+                        </article>
+
+                        <article className='overflow-hidden rounded-xl border border-slate-800 bg-slate-900 text-white'>
+                            <div className='overflow-x-auto'>
+                                <table className='min-w-full border-collapse text-sm'>
+                                    <thead className='bg-slate-950/70'>
+                                        <tr>
+                                            {['Discord ID', 'Display Name', 'Role', 'Created', 'Updated', 'Last Seen'].map((label) =>
+                                                <th key={label} className='border-b border-slate-800 px-4 py-3 text-left font-medium text-white'>{label}</th>)}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {accounts.map((account) => (
+                                            <tr key={account.discordId} className='border-b border-slate-800/70 hover:bg-slate-950/40'>
+                                                <td className='px-4 py-3'>{account.discordId}</td>
+                                                <td className='px-4 py-3'>{account.displayName}</td>
+                                                <td className='px-4 py-3'>
+                                                    <select className='rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-sm'
+                                                        value={account.role}
+                                                        onChange={(e) => changeAccountRole(account.discordId, e.target.value as 'admin' | 'user')}
+                                                        disabled={busy}>
+                                                        <option value='user'>user</option>
+                                                        <option value='admin'>admin</option>
+                                                    </select>
+                                                </td>
+                                                <td className='px-4 py-3'>{new Date(account.createdAt).toLocaleString()}</td>
+                                                <td className='px-4 py-3'>{new Date(account.updatedAt).toLocaleString()}</td>
+                                                <td className='px-4 py-3'>{account.lastSeenAt ? new Date(account.lastSeenAt).toLocaleString() : '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </article>
+                    </section>}
+
+                    {activeTab == 'analytics' && auth.role == 'admin' && <section className='space-y-4'>
                         <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
                             <h2 className='mb-3 text-lg font-semibold'>Burn Rate</h2>
                             <div className='grid gap-3 sm:grid-cols-3'>
@@ -568,49 +784,90 @@ export const Page = () => {
                         </article>
                     </section>}
 
-                    {activeTab == 'auth' && <section className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
-                        <h2 className='mb-4 text-lg font-semibold'>Dashboard Password</h2>
-                        <p className='mb-4 text-sm text-white/75'>
-                            Set a dedicated dashboard password here. After saving, the dashboard will stop using the legacy fallback secret.
-                        </p>
-                        <div className='grid gap-3 md:grid-cols-3'>
-                            <input
-                                className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                                type='password'
-                                placeholder='current password'
-                                value={currentPassword}
-                                onChange={(e) => setCurrentPassword(e.target.value)}
-                                disabled={busy}
-                            />
-                            <input
-                                className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                                type='password'
-                                placeholder='new password'
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                disabled={busy}
-                            />
-                            <input
-                                className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                                type='password'
-                                placeholder='confirm new password'
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                disabled={busy}
-                            />
-                        </div>
-                        <div className='mt-4 flex flex-wrap items-center gap-3'>
-                            <button
-                                className='rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60'
-                                onClick={savePassword}
-                                disabled={busy}
-                            >
-                                Update Password
-                            </button>
-                            <span className='text-xs text-white/70'>
-                                Minimum 12 characters recommended.
-                            </span>
-                        </div>
+                    {activeTab == 'account' && <section className='space-y-4'>
+                        <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
+                            <h2 className='mb-4 text-lg font-semibold'>Account</h2>
+                            <p className='mb-4 text-sm text-white/75'>
+                                Discord ID: <span className='font-medium text-white'>{auth.discordId ?? '-'}</span>
+                                {' '}· role: <span className='font-medium text-white'>{auth.role ?? '-'}</span>
+                            </p>
+                            {auth.sessionSource == 'account'
+                                ? <div className='grid gap-3 md:grid-cols-3'>
+                                    <input
+                                        className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                        type='password'
+                                        placeholder='current password'
+                                        value={accountCurrentPassword}
+                                        onChange={(e) => setAccountCurrentPassword(e.target.value)}
+                                        disabled={busy}
+                                    />
+                                    <input
+                                        className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                        type='password'
+                                        placeholder='new password'
+                                        value={accountNewPassword}
+                                        onChange={(e) => setAccountNewPassword(e.target.value)}
+                                        disabled={busy}
+                                    />
+                                    <input
+                                        className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                        type='password'
+                                        placeholder='confirm new password'
+                                        value={accountConfirmPassword}
+                                        onChange={(e) => setAccountConfirmPassword(e.target.value)}
+                                        disabled={busy}
+                                    />
+                                </div>
+                                : <p className='text-sm text-white/75'>
+                                    You are using legacy admin access. Create a linked dashboard account in Dashboard Users to manage your own password.
+                                </p>}
+                            {auth.sessionSource == 'account' && <div className='mt-4 flex flex-wrap items-center gap-3'>
+                                <button
+                                    className='rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60'
+                                    onClick={saveAccountPassword}
+                                    disabled={busy}
+                                >
+                                    Update Password
+                                </button>
+                                <span className='text-xs text-white/70'>
+                                    Minimum 12 characters recommended.
+                                </span>
+                            </div>}
+                        </article>
+
+                        {auth.role == 'admin' && <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
+                            <h2 className='mb-4 text-lg font-semibold'>Legacy Bootstrap Password</h2>
+                            <p className='mb-4 text-sm text-white/75'>
+                                This keeps emergency admin access available while the Discord-linked accounts are rolling out.
+                            </p>
+                            <div className='grid gap-3 md:grid-cols-2'>
+                                <input
+                                    className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                    type='password'
+                                    placeholder='current bootstrap password'
+                                    value={bootstrapCurrentPassword}
+                                    onChange={(e) => setBootstrapCurrentPassword(e.target.value)}
+                                    disabled={busy}
+                                />
+                                <input
+                                    className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
+                                    type='password'
+                                    placeholder='new bootstrap password'
+                                    value={bootstrapNewPassword}
+                                    onChange={(e) => setBootstrapNewPassword(e.target.value)}
+                                    disabled={busy}
+                                />
+                            </div>
+                            <div className='mt-4 flex flex-wrap items-center gap-3'>
+                                <button
+                                    className='rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60'
+                                    onClick={saveBootstrapPassword}
+                                    disabled={busy}
+                                >
+                                    Update Bootstrap Password
+                                </button>
+                            </div>
+                        </article>}
                     </section>}
 
                     {activeTab == 'config' && cfg && <section className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
@@ -690,7 +947,7 @@ export const Page = () => {
                                 <thead className='bg-slate-950/70'>
                                     <tr>
                                         {['Time', 'Actor', 'Action', 'Target', 'IP', 'Details'].map((label) =>
-                                            <th key={label} className='border-b border-slate-800 px-3 py-2 text-left font-medium'>{label}</th>)}
+                                            <th key={label} className='border-b border-slate-800 px-3 py-2 text-left font-medium text-white'>{label}</th>)}
                                     </tr>
                                 </thead>
                                 <tbody>

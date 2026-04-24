@@ -2,6 +2,7 @@ import * as bot from './bot.ts'
 import * as ai from './ai.ts'
 import * as memory from './memory.ts'
 import * as config from './config.ts'
+import * as dashboardUsers from './dashboard-users.ts'
 import Exa from 'exa-js'
 
 const exa = new Exa(process.env.EXA_API_KEY)
@@ -22,6 +23,7 @@ bot.message(async chat => {
 
     for (const participant of [chat.next, ...chat.history]) {
         memory.upsertUserIdentity({ userId: participant.id, displayName: participant.name })
+        dashboardUsers.upsertSeenIdentity({ discordId: participant.id, displayName: participant.name })
     }
 
     let sys = 'you are gork jr, a helpful, somewhat brainrotted, assistant.'
