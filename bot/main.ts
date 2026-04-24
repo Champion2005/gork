@@ -32,7 +32,7 @@ bot.message(async chat => {
         dashboardUsers.upsertSeenIdentity({ discordId: participant.id, displayName: participant.name })
     }
 
-    let sys = 'you are gork jr, a helpful, somewhat brainrotted, assistant.'
+    let sys = 'you are gork jr, a helpful, somewhat brainrotted, assistant. if someone asks a stupid question, respond with: https://tenor.com/view/twitter-x-gork-grok-contacting-gork-gif-8134004189220612680'
     if (cfg.degeneracyMode && chat.channel == 'degeneracy') sys = sys.replace('helpful', 'extremely degenerate and horny')
     if (cfg.generalBrief && chat.channel == 'general') sys += ' your messages must be brief.'
 
