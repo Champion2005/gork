@@ -12,6 +12,7 @@ type AuthState = {
     legacyAuthSource: 'stored' | 'env' | 'legacy-env' | 'none'
     updatedAt: string | null
     accountCount: number
+    discordOAuthConfigured: boolean
 }
 type UserRow = {
     id: string
@@ -91,6 +92,7 @@ export const Page = () => {
         legacyAuthSource: 'none',
         updatedAt: null,
         accountCount: 0,
+        discordOAuthConfigured: false,
     })
     const [loginDiscordId, setLoginDiscordId] = useState('')
     const [loginPassword, setLoginPassword] = useState('')
@@ -479,69 +481,22 @@ export const Page = () => {
 
                 {!auth.authenticated && <section className='mx-auto max-w-md'>
                     <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
-                        {authView === 'login' ? (
-                            <>
-                                <h2 className='mb-4 text-lg font-semibold'>Login</h2>
-                                <div className='space-y-3'>
-                                    <p className='text-xs text-white/70'>
-                                        {auth.legacyPasswordConfigured ? `Legacy bootstrap source: ${auth.legacyAuthSource}` : 'No legacy bootstrap password configured.'}
-                                    </p>
-                                    <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
-                                        placeholder='discord user id'
-                                        value={loginDiscordId}
-                                        onChange={(e) => setLoginDiscordId(e.target.value)}
-                                        disabled={busy} />
-                                    <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
-                                        type='password'
-                                        placeholder='password'
-                                        value={loginPassword}
-                                        onChange={(e) => setLoginPassword(e.target.value)}
-                                        disabled={busy} />
-                                    <button className='w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60' onClick={doLogin} disabled={busy}>
-                                        Sign In
-                                    </button>
-                                    {loginError && <p className='text-sm text-red-300'>{loginError}</p>}
-                                    <p className='text-center text-sm text-white/70'>
-                                        Don't have an account? <button className='text-blue-400 hover:underline' onClick={() => setAuthView('signup')} disabled={busy}>Sign up</button>
-                                    </p>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <h2 className='mb-4 text-lg font-semibold'>Sign Up</h2>
-                                <div className='space-y-3'>
-                                    <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
-                                        placeholder='discord user id'
-                                        value={signupDiscordId}
-                                        onChange={(e) => setSignupDiscordId(e.target.value)}
-                                        disabled={busy} />
-                                    <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
-                                        placeholder='display name'
-                                        value={signupDisplayName}
-                                        onChange={(e) => setSignupDisplayName(e.target.value)}
-                                        disabled={busy} />
-                                    <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
-                                        type='password'
-                                        placeholder='password'
-                                        value={signupPassword}
-                                        onChange={(e) => setSignupPassword(e.target.value)}
-                                        disabled={busy} />
-                                    <input className='w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
-                                        type='password'
-                                        placeholder='confirm password'
-                                        value={signupConfirmPassword}
-                                        onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                                        disabled={busy} />
-                                    <button className='w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60' onClick={doSignup} disabled={busy}>
-                                        Create Account
-                                    </button>
-                                    {signupError && <p className='text-sm text-red-300'>{signupError}</p>}
-                                    <p className='text-center text-sm text-white/70'>
-                                        Already have an account? <button className='text-blue-400 hover:underline' onClick={() => setAuthView('login')} disabled={busy}>Log in</button>
-                                    </p>
-                                </div>
-                            </>
-                        )}
+                        <h2 className='mb-4 text-lg font-semibold'>Login</h2>
+                        <div className='space-y-3'>
+                            <p className='text-sm text-white/75'>
+                                Sign in with Discord OAuth. Your Discord account becomes your dashboard identity.
+                            </p>
+                            <button
+                                className='w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60'
+                                onClick={() => window.location.assign('/auth/discord/start')}
+                                disabled={busy || !auth.discordOAuthConfigured}
+                            >
+                                Continue with Discord
+                            </button>
+                            {!auth.discordOAuthConfigured && <p className='text-sm text-amber-300'>
+                                Discord OAuth is not configured yet.
+                            </p>}
+                        </div>
                     </article>
                     {error && <section className='mt-4 rounded-xl border border-red-800 bg-red-950/40 p-3 text-sm text-red-200'>{error}</section>}
                 </section>}
@@ -707,62 +662,6 @@ export const Page = () => {
                     </section>}
 
                     {activeTab == 'users' && auth.role == 'admin' && <section className='space-y-4'>
-                        <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
-                            <h2 className='mb-4 text-lg font-semibold'>Create Dashboard Account</h2>
-                            <div className='grid gap-3 md:grid-cols-4'>
-                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
-                                    placeholder='discord user id'
-                                    value={createAccountDiscordId}
-                                    onChange={(e) => setCreateAccountDiscordId(e.target.value)}
-                                    disabled={busy} />
-                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
-                                    placeholder='display name'
-                                    value={createAccountDisplayName}
-                                    onChange={(e) => setCreateAccountDisplayName(e.target.value)}
-                                    disabled={busy} />
-                                <input className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
-                                    placeholder='password'
-                                    type='password'
-                                    value={createAccountPassword}
-                                    onChange={(e) => setCreateAccountPassword(e.target.value)}
-                                    disabled={busy} />
-                                <select className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white'
-                                    value={createAccountRole}
-                                    onChange={(e) => setCreateAccountRole(e.target.value as 'admin' | 'user')}
-                                    disabled={busy}>
-                                    <option value='user'>user</option>
-                                    <option value='admin'>admin</option>
-                                </select>
-                            </div>
-                            <button className='mt-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60' onClick={createDashboardAccount} disabled={busy}>
-                                Create Account
-                            </button>
-                        </article>
-
-                        <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
-                            <h2 className='mb-4 text-lg font-semibold'>Reset Account Password</h2>
-                            <div className='grid gap-3 md:grid-cols-3'>
-                                <input
-                                    className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                                    placeholder='discord user id'
-                                    value={resetAccountDiscordId}
-                                    onChange={(e) => setResetAccountDiscordId(e.target.value)}
-                                    disabled={busy}
-                                />
-                                <input
-                                    className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm md:col-span-2'
-                                    placeholder='new password'
-                                    type='password'
-                                    value={resetAccountPassword}
-                                    onChange={(e) => setResetAccountPassword(e.target.value)}
-                                    disabled={busy}
-                                />
-                            </div>
-                            <button className='mt-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60' onClick={resetDashboardAccountPassword} disabled={busy}>
-                                Reset Password
-                            </button>
-                        </article>
-
                         <article className='overflow-hidden rounded-xl border border-slate-800 bg-slate-900 text-white'>
                             <div className='overflow-x-auto'>
                                 <table className='min-w-full border-collapse text-sm'>
@@ -842,83 +741,10 @@ export const Page = () => {
                                 Discord ID: <span className='font-medium text-white'>{auth.discordId ?? '-'}</span>
                                 {' '}· role: <span className='font-medium text-white'>{auth.role ?? '-'}</span>
                             </p>
-                            {auth.sessionSource == 'account'
-                                ? <div className='grid gap-3 md:grid-cols-3'>
-                                    <input
-                                        className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                                        type='password'
-                                        placeholder='current password'
-                                        value={accountCurrentPassword}
-                                        onChange={(e) => setAccountCurrentPassword(e.target.value)}
-                                        disabled={busy}
-                                    />
-                                    <input
-                                        className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                                        type='password'
-                                        placeholder='new password'
-                                        value={accountNewPassword}
-                                        onChange={(e) => setAccountNewPassword(e.target.value)}
-                                        disabled={busy}
-                                    />
-                                    <input
-                                        className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                                        type='password'
-                                        placeholder='confirm new password'
-                                        value={accountConfirmPassword}
-                                        onChange={(e) => setAccountConfirmPassword(e.target.value)}
-                                        disabled={busy}
-                                    />
-                                </div>
-                                : <p className='text-sm text-white/75'>
-                                    You are using legacy admin access. Create a linked dashboard account in Dashboard Users to manage your own password.
-                                </p>}
-                            {auth.sessionSource == 'account' && <div className='mt-4 flex flex-wrap items-center gap-3'>
-                                <button
-                                    className='rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60'
-                                    onClick={saveAccountPassword}
-                                    disabled={busy}
-                                >
-                                    Update Password
-                                </button>
-                                <span className='text-xs text-white/70'>
-                                    Minimum 12 characters recommended.
-                                </span>
-                            </div>}
-                        </article>
-
-                        {auth.role == 'admin' && <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
-                            <h2 className='mb-4 text-lg font-semibold'>Legacy Bootstrap Password</h2>
-                            <p className='mb-4 text-sm text-white/75'>
-                                This keeps emergency admin access available while the Discord-linked accounts are rolling out.
+                            <p className='text-sm text-white/75'>
+                                Signed in through Discord OAuth. Admins can change roles from Dashboard Users.
                             </p>
-                            <div className='grid gap-3 md:grid-cols-2'>
-                                <input
-                                    className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                                    type='password'
-                                    placeholder='current bootstrap password'
-                                    value={bootstrapCurrentPassword}
-                                    onChange={(e) => setBootstrapCurrentPassword(e.target.value)}
-                                    disabled={busy}
-                                />
-                                <input
-                                    className='rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm'
-                                    type='password'
-                                    placeholder='new bootstrap password'
-                                    value={bootstrapNewPassword}
-                                    onChange={(e) => setBootstrapNewPassword(e.target.value)}
-                                    disabled={busy}
-                                />
-                            </div>
-                            <div className='mt-4 flex flex-wrap items-center gap-3'>
-                                <button
-                                    className='rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60'
-                                    onClick={saveBootstrapPassword}
-                                    disabled={busy}
-                                >
-                                    Update Bootstrap Password
-                                </button>
-                            </div>
-                        </article>}
+                        </article>
                     </section>}
 
                     {activeTab == 'config' && cfg && <section className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>

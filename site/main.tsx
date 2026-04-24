@@ -4,8 +4,8 @@ import { renderToReadableStream } from 'react-dom/server'
 import * as memory from '../bot/memory'
 import * as config from '../bot/config'
 import * as audit from '../bot/audit'
-import * as auth from '../bot/auth'
 import * as dashboardUsers from '../bot/dashboard-users'
+import * as discordOAuth from '../bot/discord-oauth'
 import { getSessionSecret } from '../bot/session'
 
 const { outputs } = await Bun.build({ entrypoints: ['./site/page.tsx'], target: 'browser' })
@@ -26,6 +26,7 @@ type Principal = {
   source: 'account' | 'legacy'
 }
 const SESSION_COOKIE = 'gork_session'
+const OAUTH_STATE_COOKIE = 'gork_oauth_state'
 const sessionTtlMs = 7 * 24 * 60 * 60 * 1000
 const sessionSecret = getSessionSecret()
 const trustProxyHeaders = process.env.TRUST_PROXY_HEADERS == 'true'
@@ -125,6 +126,12 @@ const makeCookie = (token: string, req: Request) =>
 
 const clearCookie = (req: Request) =>
   `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${isHttps(req) ? '; Secure' : ''}`
+
+const makeStateCookie = (token: string, req: Request) =>
+  `${OAUTH_STATE_COOKIE}=${encodeURIComponent(token)}; Path=/auth/discord/callback; HttpOnly; SameSite=Lax; Max-Age=600${isHttps(req) ? '; Secure' : ''}`
+
+const clearStateCookie = (req: Request) =>
+  `${OAUTH_STATE_COOKIE}=; Path=/auth/discord/callback; HttpOnly; SameSite=Lax; Max-Age=0${isHttps(req) ? '; Secure' : ''}`
 
 const readSession = (req: Request) => {
   const cookies = parseCookies(req.headers.get('cookie'))
@@ -232,7 +239,6 @@ Bun.serve({
     if (path == '/auth/status') {
       const session = readSession(req)
       const principal = resolvePrincipal(session)
-      const authStatus = auth.getAuthStatus()
       return Response.json({
         authenticated: Boolean(principal),
         discordId: principal?.discordId ?? null,
@@ -240,64 +246,41 @@ Bun.serve({
         role: principal?.role ?? null,
         sessionSource: principal?.source ?? null,
         csrfToken: session?.csrf ?? null,
-        legacyPasswordConfigured: authStatus.passwordConfigured,
-        legacyAuthSource: authStatus.authSource,
-        updatedAt: authStatus.updatedAt,
+        discordOAuthConfigured: discordOAuth.isDiscordOAuthConfigured(),
+        legacyPasswordConfigured: false,
+        legacyAuthSource: 'none',
+        updatedAt: null,
         accountCount: dashboardUsers.listAccounts().length,
       })
     }
 
-    if (path == '/login') {
-      if (req.method != 'POST') return new Response('Method not allowed', { status: 405 })
-      if (!hitRateLimit(`login:ip:${ip}`, 12, 10 * 60 * 1000)
-        || !hitRateLimit('login:global', 5000, 10 * 60 * 1000)) {
-        return new Response('Too many login attempts', { status: 429 })
-      }
-      const body = await parseJsonBody(req)
-      if (!body) return new Response('Invalid JSON payload', { status: 400 })
-      const discordId = getString(body, 'discordId') || getString(body, 'username')
-      const password = getString(body, 'password')
-      const account = discordId ? dashboardUsers.verifyCredentials(discordId, password) : null
-      if (account) {
-        const token = encodeSession({
-          exp: Date.now() + sessionTtlMs,
-          csrf: randomBytes(24).toString('hex'),
-          discordId: account.discordId,
-          displayName: account.displayName,
-          role: account.role,
-          source: 'account',
-        })
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { 'Content-Type': 'application/json', 'Set-Cookie': makeCookie(token, req) },
-        })
-      }
-
-      if (!auth.verifyPassword(password)) return new Response('Invalid credentials', { status: 401 })
-      const token = encodeSession({
-        exp: Date.now() + sessionTtlMs,
-        csrf: randomBytes(24).toString('hex'),
-        discordId: discordId || 'legacy-admin',
-        displayName: 'admin',
-        role: 'admin',
-        source: 'legacy',
+    if (path == '/auth/discord/start') {
+      if (req.method != 'GET') return new Response('Method not allowed', { status: 405 })
+      if (!discordOAuth.isDiscordOAuthConfigured()) return new Response('Discord OAuth is not configured', { status: 503 })
+      if (!hitGuardedRateLimit('write', ip, 60, 60 * 1000)) return new Response('Too many requests', { status: 429 })
+      const state = randomBytes(24).toString('hex')
+      const redirectUri = new URL('/auth/discord/callback', new URL(req.url).origin).toString()
+      const headers = new Headers({
+        Location: discordOAuth.buildDiscordAuthorizeUrl({ state, redirectUri }),
+        'Set-Cookie': makeStateCookie(state, req),
       })
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { 'Content-Type': 'application/json', 'Set-Cookie': makeCookie(token, req) },
-      })
+      return new Response(null, { status: 303, headers })
     }
 
-    if (path == '/signup') {
-      if (req.method != 'POST') return new Response('Method not allowed', { status: 405 })
-      if (!hitRateLimit(`signup:ip:${ip}`, 12, 60 * 60 * 1000)) return new Response('Too many requests', { status: 429 })
-      const body = await parseJsonBody(req)
-      if (!body) return new Response('Invalid JSON payload', { status: 400 })
-      const discordId = getString(body, 'discordId')
-      const displayName = getString(body, 'displayName')
-      const password = getString(body, 'password')
+    if (path == '/auth/discord/callback') {
+      if (req.method != 'GET') return new Response('Method not allowed', { status: 405 })
+      if (!discordOAuth.isDiscordOAuthConfigured()) return new Response('Discord OAuth is not configured', { status: 503 })
+      const url = new URL(req.url)
+      const code = url.searchParams.get('code')?.trim() ?? ''
+      const state = url.searchParams.get('state')?.trim() ?? ''
+      const cookies = parseCookies(req.headers.get('cookie'))
+      const expectedState = cookies[OAUTH_STATE_COOKIE]
+      if (!code) return new Response('Missing OAuth code', { status: 400 })
+      if (!state || !expectedState || !secureEq(state, expectedState)) return new Response('Invalid OAuth state', { status: 400 })
+      const redirectUri = new URL('/auth/discord/callback', url.origin).toString()
       try {
-        if (!discordId) return new Response('"discordId" is required', { status: 400 })
-        const account = dashboardUsers.createAccount({ discordId, displayName, password, role: 'user' })
-        audit.logAudit({ actor: account.displayName, ip, action: 'account.signup', userId: account.discordId, displayName: account.displayName })
+        const identity = await discordOAuth.exchangeDiscordCode({ code, redirectUri })
+        const account = dashboardUsers.syncAccount({ discordId: identity.discordId, displayName: identity.displayName })
         const token = encodeSession({
           exp: Date.now() + sessionTtlMs,
           csrf: randomBytes(24).toString('hex'),
@@ -306,12 +289,20 @@ Bun.serve({
           role: account.role,
           source: 'account',
         })
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { 'Content-Type': 'application/json', 'Set-Cookie': makeCookie(token, req) },
+        const headers = new Headers({ Location: '/' })
+        headers.append('Set-Cookie', makeCookie(token, req))
+        headers.append('Set-Cookie', clearStateCookie(req))
+        return new Response(null, {
+          status: 303,
+          headers,
         })
       } catch (error) {
         return responseFromError(error)
       }
+    }
+
+    if (path == '/login' || path == '/signup') {
+      return new Response('Discord OAuth has replaced password login', { status: 410 })
     }
 
     if (path == '/logout') {
@@ -326,74 +317,18 @@ Bun.serve({
     }
 
     if (path == '/account/password') {
-      if (req.method != 'POST') return new Response('Method not allowed', { status: 405 })
-      if (!hitGuardedRateLimit('write', ip, 60, 60 * 1000)) return new Response('Too many requests', { status: 429 })
-      const { session, principal, response } = requireAuth(req)
-      if (response) return response
-      if (principal!.source != 'account') return new Response('Legacy admin sessions cannot use account passwords', { status: 403 })
-      const csrfErr = requireCsrf(req, session!)
-      if (csrfErr) return csrfErr
-      const body = await parseJsonBody(req)
-      if (!body) return new Response('Invalid JSON payload', { status: 400 })
-      const currentPassword = getString(body, 'currentPassword')
-      const newPassword = getString(body, 'newPassword')
-      try {
-        if (!newPassword) return new Response('"newPassword" is required', { status: 400 })
-        const updated = dashboardUsers.changePassword({
-          discordId: principal!.discordId,
-          currentPassword,
-          newPassword,
-        })
-        audit.logAudit({ actor: principal!.displayName, ip, action: 'account.password.update', userId: updated.discordId, displayName: updated.displayName })
-        return Response.json(updated)
-      } catch (error) {
-        return responseFromError(error)
-      }
+      return new Response('Discord OAuth accounts do not use passwords', { status: 410 })
     }
 
     if (path == '/auth/password') {
-      if (req.method != 'POST') return new Response('Method not allowed', { status: 405 })
-      if (!hitGuardedRateLimit('write', ip, 60, 60 * 1000)) return new Response('Too many requests', { status: 429 })
-      const { session, principal, response } = requireAdmin(req)
-      if (response) return response
-      const csrfErr = requireCsrf(req, session!)
-      if (csrfErr) return csrfErr
-      const body = await parseJsonBody(req)
-      if (!body) return new Response('Invalid JSON payload', { status: 400 })
-      const currentPassword = getString(body, 'currentPassword')
-      const newPassword = getString(body, 'newPassword')
-      try {
-        if (!newPassword) return new Response('"newPassword" is required', { status: 400 })
-        const status = auth.setPassword(currentPassword, newPassword)
-        audit.logAudit({ actor: principal!.displayName, ip, action: 'auth.password.update', details: { authSource: status.authSource } })
-        return Response.json(status)
-      } catch (error) {
-        return responseFromError(error)
-      }
+      return new Response('Discord OAuth accounts do not use passwords', { status: 410 })
     }
 
     if (path == '/accounts') {
       const { session, principal, response } = requireAdmin(req)
       if (response) return response
       if (req.method == 'GET') return Response.json({ accounts: dashboardUsers.listAccounts() })
-      if (req.method != 'POST') return new Response('Method not allowed', { status: 405 })
-      if (!hitGuardedRateLimit('write', ip, 120, 60 * 1000)) return new Response('Too many requests', { status: 429 })
-      const csrfErr = requireCsrf(req, session!)
-      if (csrfErr) return csrfErr
-      const body = await parseJsonBody(req)
-      if (!body) return new Response('Invalid JSON payload', { status: 400 })
-      const discordId = getString(body, 'discordId')
-      const displayName = getString(body, 'displayName')
-      const password = getString(body, 'password')
-      const role = getString(body, 'role') == 'admin' ? 'admin' : 'user'
-      try {
-        if (!discordId) return new Response('"discordId" is required', { status: 400 })
-        const account = dashboardUsers.createAccount({ discordId, displayName, password, role })
-        audit.logAudit({ actor: principal!.displayName, ip, action: 'account.create', userId: account.discordId, displayName: account.displayName, details: { role: account.role } })
-        return Response.json({ ok: true, account })
-      } catch (error) {
-        return responseFromError(error)
-      }
+      return new Response('Discord OAuth accounts are created automatically on first login', { status: 410 })
     }
 
     if (path == '/accounts/role') {
@@ -419,25 +354,7 @@ Bun.serve({
     }
 
     if (path == '/accounts/reset-password') {
-      if (req.method != 'POST') return new Response('Method not allowed', { status: 405 })
-      if (!hitGuardedRateLimit('write', ip, 120, 60 * 1000)) return new Response('Too many requests', { status: 429 })
-      const { session, principal, response } = requireAdmin(req)
-      if (response) return response
-      const csrfErr = requireCsrf(req, session!)
-      if (csrfErr) return csrfErr
-      const body = await parseJsonBody(req)
-      if (!body) return new Response('Invalid JSON payload', { status: 400 })
-      const discordId = getString(body, 'discordId')
-      const newPassword = getString(body, 'newPassword')
-      try {
-        if (!discordId) return new Response('"discordId" is required', { status: 400 })
-        if (!newPassword) return new Response('"newPassword" is required', { status: 400 })
-        const account = dashboardUsers.resetPassword({ discordId, newPassword })
-        audit.logAudit({ actor: principal!.displayName, ip, action: 'account.password.reset', userId: account.discordId, displayName: account.displayName })
-        return Response.json({ ok: true, account })
-      } catch (error) {
-        return responseFromError(error)
-      }
+      return new Response('Discord OAuth accounts do not use passwords', { status: 410 })
     }
 
     if (path == '/load') {
