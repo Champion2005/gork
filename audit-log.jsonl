@@ -1,0 +1,6 @@
+{"id":"1777045633032-vj7gi3z6","at":"2026-04-24T15:47:13.032Z","actor":"admin","ip":"127.0.0.1","action":"fact.add","userId":"1234567891","displayName":"smoke-two","after":"hello fact"}
+{"id":"1777045633047-ygmne5n1","at":"2026-04-24T15:47:13.047Z","actor":"admin","ip":"127.0.0.1","action":"fact.edit","userId":"1234567891","before":"hello fact","after":"hello fact v2"}
+{"id":"1777045633055-eaba8ims","at":"2026-04-24T15:47:13.055Z","actor":"admin","ip":"127.0.0.1","action":"fact.bulk-delete","userId":"1234567891","details":{"removed":1}}
+{"id":"1777045633063-uhmpucf1","at":"2026-04-24T15:47:13.063Z","actor":"admin","ip":"127.0.0.1","action":"config.update","details":{"model":"x-ai/grok-4.20","historyDepth":12,"replyMaxLength":1990,"generalBrief":true,"degeneracyMode":true,"webSearchEnabled":true,"readOnlyMode":false,"mutedUserIds":[],"deniedUserIds":[]}}
+{"id":"1777046338402-wsgz69f7","at":"2026-04-24T15:58:58.402Z","actor":"admin","ip":"127.0.0.1","action":"auth.password.update","details":{"authSource":"stored"}}
+{"id":"1777048440262-s01imfmf","at":"2026-04-24T16:34:00.262Z","actor":"Smoke Test","ip":"127.0.0.1","action":"account.signup","userId":"111111111111111111","displayName":"Smoke Test"}
