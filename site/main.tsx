@@ -441,6 +441,7 @@ Bun.serve({
       '/facts/bulk-delete',
       '/facts/dedupe',
       '/facts/cleanup-low-value',
+      '/facts/delete-profile',
     ].includes(path)
 
     if (isFactWritePath) {
@@ -517,7 +518,7 @@ Bun.serve({
     }
 
     if (path.startsWith('/auth/') || path.startsWith('/system/') || path.startsWith('/facts/') || ['/load', '/analytics', '/audit', '/config', '/accounts'].includes(path)) {
-      return new Response('API route not found', { status: 404, headers: { 'Content-Type': 'application/json' } })
+      return Response.json({ error: 'API route not found', path }, { status: 404 })
     }
 
     return renderToReadableStream(<Page />, { bootstrapModules: ['/dist.js'] }).then((s) => new Response(s))
