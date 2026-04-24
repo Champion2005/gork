@@ -255,6 +255,12 @@ export const Page = () => {
         await reloadAll()
     })
 
+    const deleteProfile = (userId: string, displayName: string) => run(async () => {
+        if (!confirm(`Are you sure you want to PERMANENTLY delete the entire profile for ${displayName} (${userId})? This cannot be undone.`)) return
+        await postJson('/facts/delete-profile', { userId })
+        await reloadAll()
+    })
+
     const changeAccountRole = (discordId: string, role: 'admin' | 'user') => run(async () => {
         await postJson('/accounts/role', { discordId, role })
         const selfChange = discordId == auth.discordId
@@ -470,6 +476,10 @@ export const Page = () => {
                                             onClick={() => cleanupLowValue(user.id)} disabled={busy}>
                                             Cleanup Low-Value
                                         </button>
+                                        {auth.role == 'admin' && <button className='rounded-md border border-red-900/50 bg-red-900/20 px-3 py-1 text-xs text-red-200 hover:bg-red-900/40'
+                                            onClick={() => deleteProfile(user.id, user.displayName)} disabled={busy}>
+                                            Delete Profile
+                                        </button>}
                                     </div>}
                                 </div>
 

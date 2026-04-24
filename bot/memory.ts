@@ -190,6 +190,14 @@ export const cleanupLowValueFacts = ({ userId }: { userId: string }) => {
     return before - row.facts.length
 }
 
+export const deleteUserProfile = ({ userId }: { userId: string }) => {
+    const mem = load()
+    if (!mem[userId]) return false
+    delete mem[userId]
+    save(mem)
+    return true
+}
+
 const appendUsageEvent = (event: UsageEvent) => appendFileSync(USAGE_FILE, `${JSON.stringify(event)}\n`)
 
 export const addUsageSample = ({ userId, displayName, inputTokens, outputTokens, cachedTokens, cost }: UsageSample) => {

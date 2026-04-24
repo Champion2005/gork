@@ -502,6 +502,13 @@ Bun.serve({
         audit.logAudit({ actor: principal!.displayName, ip, action: 'fact.cleanup-low-value', userId: targetUserId, displayName: targetDisplayName, details: { removed } })
         return Response.json({ ok: true, removed })
       }
+
+      if (path == '/facts/delete-profile') {
+        if (principal!.role != 'admin') return new Response('Only admins can delete profiles', { status: 403 })
+        const success = memory.deleteUserProfile({ userId: targetUserId })
+        audit.logAudit({ actor: principal!.displayName, ip, action: 'fact.delete-profile', userId: targetUserId, displayName: targetDisplayName })
+        return Response.json({ ok: success })
+      }
     }
 
     return renderToReadableStream(<Page />, { bootstrapModules: ['/dist.js'] }).then((s) => new Response(s))
