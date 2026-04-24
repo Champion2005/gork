@@ -7,9 +7,7 @@ type AuthState = {
     displayName: string | null
     role: 'admin' | 'user' | null
     csrfToken: string | null
-    sessionSource: 'account' | 'legacy' | null
-    legacyPasswordConfigured: boolean
-    legacyAuthSource: 'stored' | 'env' | 'legacy-env' | 'none'
+    sessionSource: 'oauth' | null
     updatedAt: string | null
     accountCount: number
     discordOAuthConfigured: boolean
@@ -88,21 +86,10 @@ export const Page = () => {
         role: null,
         csrfToken: null,
         sessionSource: null,
-        legacyPasswordConfigured: false,
-        legacyAuthSource: 'none',
         updatedAt: null,
         accountCount: 0,
         discordOAuthConfigured: false,
     })
-    const [loginDiscordId, setLoginDiscordId] = useState('')
-    const [loginPassword, setLoginPassword] = useState('')
-    const [loginError, setLoginError] = useState('')
-    const [signupDiscordId, setSignupDiscordId] = useState('')
-    const [signupDisplayName, setSignupDisplayName] = useState('')
-    const [signupPassword, setSignupPassword] = useState('')
-    const [signupConfirmPassword, setSignupConfirmPassword] = useState('')
-    const [signupError, setSignupError] = useState('')
-    const [authView, setAuthView] = useState<'login' | 'signup'>('login')
     const [activeTab, setActiveTab] = useState<Tab>('facts')
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState('')
@@ -123,17 +110,6 @@ export const Page = () => {
     const [sortState, setSortState] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'cost', direction: 'desc' })
     const [mutedInput, setMutedInput] = useState('')
     const [deniedInput, setDeniedInput] = useState('')
-    const [accountCurrentPassword, setAccountCurrentPassword] = useState('')
-    const [accountNewPassword, setAccountNewPassword] = useState('')
-    const [accountConfirmPassword, setAccountConfirmPassword] = useState('')
-    const [bootstrapCurrentPassword, setBootstrapCurrentPassword] = useState('')
-    const [bootstrapNewPassword, setBootstrapNewPassword] = useState('')
-    const [createAccountDiscordId, setCreateAccountDiscordId] = useState('')
-    const [createAccountDisplayName, setCreateAccountDisplayName] = useState('')
-    const [createAccountPassword, setCreateAccountPassword] = useState('')
-    const [createAccountRole, setCreateAccountRole] = useState<'admin' | 'user'>('user')
-    const [resetAccountDiscordId, setResetAccountDiscordId] = useState('')
-    const [resetAccountPassword, setResetAccountPassword] = useState('')
 
     const csrfHeaders = () => auth.csrfToken ? { 'x-csrf-token': auth.csrfToken } : {}
 
@@ -212,28 +188,6 @@ export const Page = () => {
         }
     }
 
-    const doLogin = () => run(async () => {
-        setLoginError('')
-        await postJson('/login', { discordId: loginDiscordId.trim(), password: loginPassword })
-        setLoginPassword('')
-        await refreshAuth()
-    })
-
-    const doSignup = () => run(async () => {
-        setSignupError('')
-        const discordId = signupDiscordId.trim()
-        const displayName = signupDisplayName.trim()
-        const password = signupPassword
-        if (!discordId) throw new Error('Discord ID is required')
-        if (signupPassword !== signupConfirmPassword) throw new Error('Passwords do not match')
-        await postJson('/signup', { discordId, displayName, password })
-        setSignupDiscordId('')
-        setSignupDisplayName('')
-        setSignupPassword('')
-        setSignupConfirmPassword('')
-        await refreshAuth()
-    })
-
     const doLogout = () => run(async () => {
         await postJson('/logout', {})
         setUsers([])
@@ -247,23 +201,6 @@ export const Page = () => {
         setEditing(null)
         setEditValue('')
         setSelectedFacts({})
-        setLoginDiscordId('')
-        setSignupDiscordId('')
-        setSignupDisplayName('')
-        setLoginPassword('')
-        setSignupPassword('')
-        setSignupConfirmPassword('')
-        setAccountCurrentPassword('')
-        setAccountNewPassword('')
-        setAccountConfirmPassword('')
-        setBootstrapCurrentPassword('')
-        setBootstrapNewPassword('')
-        setCreateAccountDiscordId('')
-        setCreateAccountDisplayName('')
-        setCreateAccountPassword('')
-        setCreateAccountRole('user')
-        setResetAccountDiscordId('')
-        setResetAccountPassword('')
         await refreshAuth()
     })
 
@@ -306,60 +243,6 @@ export const Page = () => {
 
     const cleanupLowValue = (userId: string) => run(async () => {
         await postJson('/facts/cleanup-low-value', { userId })
-        await reloadAll()
-    })
-
-    const saveAccountPassword = () => run(async () => {
-        if (!accountNewPassword.trim()) throw new Error('New password is required')
-        if (accountNewPassword !== accountConfirmPassword) throw new Error('Passwords do not match')
-        await postJson('/account/password', {
-            currentPassword: accountCurrentPassword,
-            newPassword: accountNewPassword,
-        })
-        setAccountCurrentPassword('')
-        setAccountNewPassword('')
-        setAccountConfirmPassword('')
-        await refreshAuth()
-        await reloadAll()
-    })
-
-    const saveBootstrapPassword = () => run(async () => {
-        if (!bootstrapNewPassword.trim()) throw new Error('New password is required')
-        await postJson('/auth/password', {
-            currentPassword: bootstrapCurrentPassword,
-            newPassword: bootstrapNewPassword,
-        })
-        setBootstrapCurrentPassword('')
-        setBootstrapNewPassword('')
-        await refreshAuth()
-    })
-
-    const createDashboardAccount = () => run(async () => {
-        const discordId = createAccountDiscordId.trim()
-        const displayName = createAccountDisplayName.trim()
-        const password = createAccountPassword
-        if (!discordId) throw new Error('Discord ID is required')
-        await postJson('/accounts', {
-            discordId,
-            displayName,
-            password,
-            role: createAccountRole,
-        })
-        setCreateAccountDiscordId('')
-        setCreateAccountDisplayName('')
-        setCreateAccountPassword('')
-        setCreateAccountRole('user')
-        await reloadAll()
-    })
-
-    const resetDashboardAccountPassword = () => run(async () => {
-        const discordId = resetAccountDiscordId.trim()
-        const newPassword = resetAccountPassword
-        if (!discordId) throw new Error('Discord ID is required')
-        if (!newPassword.trim()) throw new Error('New password is required')
-        await postJson('/accounts/reset-password', { discordId, newPassword })
-        setResetAccountDiscordId('')
-        setResetAccountPassword('')
         await reloadAll()
     })
 
@@ -481,22 +364,20 @@ export const Page = () => {
 
                 {!auth.authenticated && <section className='mx-auto max-w-md'>
                     <article className='rounded-xl border border-slate-800 bg-slate-900 p-5 text-white'>
-                        <h2 className='mb-4 text-lg font-semibold'>Login</h2>
-                        <div className='space-y-3'>
-                            <p className='text-sm text-white/75'>
-                                Sign in with Discord OAuth. Your Discord account becomes your dashboard identity.
-                            </p>
-                            <button
-                                className='w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60'
-                                onClick={() => window.location.assign('/auth/discord/start')}
-                                disabled={busy || !auth.discordOAuthConfigured}
-                            >
-                                Continue with Discord
-                            </button>
-                            {!auth.discordOAuthConfigured && <p className='text-sm text-amber-300'>
-                                Discord OAuth is not configured yet.
-                            </p>}
-                        </div>
+                        <h2 className='mb-4 text-lg font-semibold'>Login with Discord</h2>
+                        <p className='mb-4 text-sm text-white/75'>
+                            Sign in with Discord OAuth. Your Discord account becomes your dashboard identity.
+                        </p>
+                        <button
+                            className='w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-500 disabled:opacity-60'
+                            onClick={() => window.location.assign('/auth/discord/start')}
+                            disabled={busy || !auth.discordOAuthConfigured}
+                        >
+                            Continue with Discord
+                        </button>
+                        {!auth.discordOAuthConfigured && <p className='mt-3 text-sm text-amber-300'>
+                            Discord OAuth is not configured yet.
+                        </p>}
                     </article>
                     {error && <section className='mt-4 rounded-xl border border-red-800 bg-red-950/40 p-3 text-sm text-red-200'>{error}</section>}
                 </section>}

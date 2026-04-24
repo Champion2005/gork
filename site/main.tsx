@@ -17,13 +17,13 @@ type SessionPayload = {
   discordId: string
   displayName: string
   role: dashboardUsers.DashboardRole
-  source: 'account' | 'legacy'
+  source: 'oauth'
 }
 type Principal = {
   discordId: string
   displayName: string
   role: dashboardUsers.DashboardRole
-  source: 'account' | 'legacy'
+  source: 'oauth'
 }
 const SESSION_COOKIE = 'gork_session'
 const OAUTH_STATE_COOKIE = 'gork_oauth_state'
@@ -172,21 +172,13 @@ const hitGuardedRateLimit = (bucketPrefix: string, ip: string, limit: number, wi
 
 const resolvePrincipal = (session: SessionPayload | null): Principal | null => {
   if (!session) return null
-  if (session.source == 'legacy') {
-    return {
-      discordId: session.discordId,
-      displayName: session.displayName,
-      role: session.role,
-      source: 'legacy',
-    }
-  }
   const account = dashboardUsers.findAccount(session.discordId)
   if (!account) return null
   return {
     discordId: account.discordId,
     displayName: account.displayName,
     role: account.role,
-    source: 'account',
+    source: 'oauth',
   }
 }
 
@@ -247,8 +239,6 @@ Bun.serve({
         sessionSource: principal?.source ?? null,
         csrfToken: session?.csrf ?? null,
         discordOAuthConfigured: discordOAuth.isDiscordOAuthConfigured(),
-        legacyPasswordConfigured: false,
-        legacyAuthSource: 'none',
         updatedAt: null,
         accountCount: dashboardUsers.listAccounts().length,
       })
@@ -287,7 +277,7 @@ Bun.serve({
           discordId: account.discordId,
           displayName: account.displayName,
           role: account.role,
-          source: 'account',
+          source: 'oauth',
         })
         const headers = new Headers({ Location: '/' })
         headers.append('Set-Cookie', makeCookie(token, req))
@@ -301,10 +291,6 @@ Bun.serve({
       }
     }
 
-    if (path == '/login' || path == '/signup') {
-      return new Response('Discord OAuth has replaced password login', { status: 410 })
-    }
-
     if (path == '/logout') {
       if (req.method != 'POST') return new Response('Method not allowed', { status: 405 })
       const token = parseCookies(req.headers.get('cookie'))[SESSION_COOKIE]
@@ -314,14 +300,6 @@ Bun.serve({
       return new Response(JSON.stringify({ ok: true }), {
         headers: { 'Content-Type': 'application/json', 'Set-Cookie': clearCookie(req) },
       })
-    }
-
-    if (path == '/account/password') {
-      return new Response('Discord OAuth accounts do not use passwords', { status: 410 })
-    }
-
-    if (path == '/auth/password') {
-      return new Response('Discord OAuth accounts do not use passwords', { status: 410 })
     }
 
     if (path == '/accounts') {
