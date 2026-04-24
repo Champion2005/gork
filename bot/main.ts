@@ -1,37 +1,47 @@
 import * as bot from './bot.ts'
 import * as ai from './ai.ts'
 import * as memory from './memory.ts'
-import { readFileSync, readdirSync, writeFileSync } from 'fs'
-import { exit } from 'process'
-import Exa from "exa-js"
+import * as config from './config.ts'
+import Exa from 'exa-js'
+
 const exa = new Exa(process.env.EXA_API_KEY)
+bot.setHistoryDepthGetter(() => config.loadConfig().historyDepth)
 
-// const files = readdirSync('./bot').filter(f => f.endsWith('.ts') || f.endsWith('.json'))
-// ai.tool('read-file', `read a file. ALWAYS ensure you have context for files you talk about! must be * or in ${files}`, ['file'], ({ file }) => {
-//     if(files.includes(file)) return readFileSync(file, 'utf-8')
-//     if(file == '*') files.map(f => `>> ${f}\n${readFileSync(f, 'utf-8')}`)
-//     return 'error: not found'
-// })
-// ai.tool('write-file', `(over)write file. file must be in ${files}.`, ['file', 'data'], ({ data, file }) => writeFileSync(file, data))
+ai.tool('web-search', 'search a question via exa', ['query'], async ({ query }) => {
+    if (!config.loadConfig().webSearchEnabled) return 'web search is disabled by admin'
+    return await exa.search(query, { contents: { highlights: { maxCharacters: 2500 } } }).results
+})
 
-ai.tool('web-search', 'search a question via exa', ['query'], async ({ query }) => await exa.search(query, { contents: { highlights: { maxCharacters: 2500 } } }).results)
-ai.tool('add-fun-fact', 'adds to memory', ['user', 'fact'], memory.addFact)
+ai.tool('add-fun-fact', 'adds to memory', ['user', 'fact'], ({ user, fact }) =>
+    memory.addFact({ user, fact, displayName: user }))
 
 bot.message(async chat => {
+    const cfg = config.loadConfig()
+    if (cfg.deniedUserIds.includes(chat.next.id)) return ''
+    if (cfg.mutedUserIds.includes(chat.next.id)) return ''
+
+    for (const participant of [chat.next, ...chat.history]) {
+        memory.upsertUserIdentity({ userId: participant.id, displayName: participant.name })
+    }
+
     let sys = 'you are gork jr, a helpful, somewhat brainrotted, assistant.'
-    if(chat.channel == 'degeneracy') sys = sys.replace('helpful', 'extremely degenerate and horny')
-    if(chat.channel == 'general') sys += ' your messages must be brief.'
+    if (cfg.degeneracyMode && chat.channel == 'degeneracy') sys = sys.replace('helpful', 'extremely degenerate and horny')
+    if (cfg.generalBrief && chat.channel == 'general') sys += ' your messages must be brief.'
 
-    sys += '\nfun facts you know about these users:\n' + memory.buildFacts([...new Set(['gork', ...chat.history.map(h => h.name), chat.next.name])])
+    const people = [...new Map([chat.next, ...chat.history, { id: 'gork', name: 'gork', msg: '' }]
+        .map((entry) => [entry.id, { id: entry.id, name: entry.name }])).values()]
+    sys += '\nfun facts you know about these users:\n' + memory.buildFacts(people)
 
-    const out = await ai.get(sys, chat.history, chat.next)
+    const out = await ai.getWithOptions({ model: cfg.model }, sys, chat.history, chat.next)
     memory.addUsageSample({
-        user: chat.next.name,
+        userId: chat.next.id,
+        displayName: chat.next.name,
         inputTokens: out.usage.inputTokens,
         outputTokens: out.usage.outputTokens,
         cachedTokens: out.usage.cachedTokens,
         cost: out.usage.cost,
     })
-    return out.content.slice(0, 1990)
+    return out.content.slice(0, cfg.replyMaxLength)
 })
+
 bot.ready()

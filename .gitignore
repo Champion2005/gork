@@ -7,3 +7,6 @@ test_or.js
 test_grok.js
 bun.lock
 package-lock.json
+bot-config.json
+audit-log.jsonl
+usage-events.jsonl

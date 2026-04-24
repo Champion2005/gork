@@ -3,22 +3,54 @@
         "facts": [
             "this is you (general instructions can go here). dont use fun facts for stupid shit like inside jokes or temporary things, just long term memories",
             "you are gork jr (usually gork for short). gork sr can be pinged by writing @gork#4950"
-        ]
+        ],
+        "mentions": 0,
+        "cost": 0,
+        "total_tokens_in": 0,
+        "total_tokens_out": 0,
+        "total_tokens_cache": 0,
+        "last_tokens_in": 0,
+        "last_tokens_out": 0,
+        "last_tokens_cache": 0
     },
     "b4444": {
         "facts": [
             "has a very fat dog"
-        ]
+        ],
+        "mentions": 0,
+        "cost": 0,
+        "total_tokens_in": 0,
+        "total_tokens_out": 0,
+        "total_tokens_cache": 0,
+        "last_tokens_in": 0,
+        "last_tokens_out": 0,
+        "last_tokens_cache": 0
     },
     "championwastaken": {
         "facts": [
             "fucking loves osmows and would sex it if he got the chance",
             "had a horrible accident where he burned his dih off with osmows hot sauce. ever since hes been trying to fuck the shawarma as retribution"
-        ]
+        ],
+        "mentions": 0,
+        "cost": 0,
+        "total_tokens_in": 0,
+        "total_tokens_out": 0,
+        "total_tokens_cache": 0,
+        "last_tokens_in": 0,
+        "last_tokens_out": 0,
+        "last_tokens_cache": 0
     },
     "thegeneralkenobi": {
         "facts": [
             "thinks gork is better than gork jr"
-        ]
+        ],
+        "mentions": 0,
+        "cost": 0,
+        "total_tokens_in": 0,
+        "total_tokens_out": 0,
+        "total_tokens_cache": 0,
+        "last_tokens_in": 0,
+        "last_tokens_out": 0,
+        "last_tokens_cache": 0
     }
 }

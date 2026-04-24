@@ -3,15 +3,17 @@ import { Client, GatewayIntentBits, REST, Routes, TextChannel, type ChatInputCom
 
 export const isString = 3, isInteger = 4, isUser = 6
 type Chats = {
-    history: { name: string; msg: string }[], next: { name: string; msg: string },
+    history: { id: string; name: string; msg: string }[], next: { id: string; name: string; msg: string },
     channel: string, message?: Message, interaction?: ChatInputCommandInteraction
 }
-type Handler = (chat: Chats, args: Record<string, unknown>) => void | Promise<string>
+type Handler = (chat: Chats, args: Record<string, unknown>) => void | Promise<string | undefined>
 
 const cmds: { name: string; args: Record<string, number>; handler: Handler }[] = []
 let msgHandler: Handler
 export const command = (name: string, args: Record<string, number>, handler: Handler) => void cmds.push({ name, args, handler })
 export const message = (h: Handler) => msgHandler = h
+let historyDepthGetter = () => 12
+export const setHistoryDepthGetter = (getter: () => number) => { historyDepthGetter = getter }
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] })
 
@@ -34,9 +36,9 @@ const buildDiscordCommands = () => {
 
 const buildChats = async (msg: Message, n = 12): Promise<Chats> => {
     const history = await msg.channel.messages.fetch({ limit: 20 })
-        .then((msgs: Map<any, Message>) => [...msgs.values()].reverse().slice(-n).map(m => ({ name: m.author.username, msg: m.content })))
+        .then((msgs: Map<any, Message>) => [...msgs.values()].reverse().slice(-n).map(m => ({ id: m.author.id, name: m.author.username, msg: m.content })))
     history.pop()
-    return { history, next: { name: msg.author.username, msg: msg.content }, channel: (msg.channel as TextChannel).name, message: msg }
+    return { history, next: { id: msg.author.id, name: msg.author.username, msg: msg.content }, channel: (msg.channel as TextChannel).name, message: msg }
 }
 
 export const ready = () => {
@@ -52,8 +54,11 @@ export const ready = () => {
     client.on('messageCreate', async msg => {
         if (!msg.mentions.members?.has(client.user!.id) || msg.author.id == client.user!.id) return
         msg.channel.sendTyping()
-        const chat = await buildChats(msg)
-        if(msgHandler) await msg.reply(await msgHandler(chat, {})!)
+        const chat = await buildChats(msg, historyDepthGetter())
+        if (msgHandler) {
+            const reply = await msgHandler(chat, {})
+            if (reply && reply.trim()) await msg.reply(reply)
+        }
     })
 
     const token = process.env.DISCORD_TOKEN
