@@ -18,6 +18,16 @@ export const deleteFact = ({ user, fact }: { user: string, fact: string }) => {
     save(m)
 }
 
+export const editFact = ({ user, oldFact, newFact }: { user: string, oldFact: string, newFact: string }) => {
+    const m: Memory = load()
+    if (!m[user]) return
+    const idx = m[user].facts.indexOf(oldFact)
+    if (idx !== -1) {
+        m[user].facts[idx] = newFact
+        save(m)
+    }
+}
+
 export const buildFacts = (users: string[]) => 
     Object.entries(load())
         .filter(([k]) => users.includes(k))
