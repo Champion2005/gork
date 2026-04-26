@@ -61,16 +61,23 @@ CRITICAL INSTRUCTIONS:
         .map((entry) => [entry.id, { id: entry.id, name: entry.name }])).values()]
     sys += '\nfun facts you know about these users:\n' + memory.buildFacts(people)
 
-    const out = await ai.getWithOptions({ model: cfg.model }, sys, chat.history, chat.next)
-    memory.addUsageSample({
-        userId: chat.next.id,
-        displayName: chat.next.name,
-        inputTokens: out.usage.inputTokens,
-        outputTokens: out.usage.outputTokens,
-        cachedTokens: out.usage.cachedTokens,
-        cost: out.usage.cost,
-    })
-    return out.content.slice(0, cfg.replyMaxLength)
+    try {
+        const out = await ai.getWithOptions({ model: cfg.model }, sys, chat.history, chat.next)
+        memory.addUsageSample({
+            userId: chat.next.id,
+            displayName: chat.next.name,
+            inputTokens: out.usage.inputTokens,
+            outputTokens: out.usage.outputTokens,
+            cachedTokens: out.usage.cachedTokens,
+            cost: out.usage.cost,
+        })
+        return out.content.slice(0, cfg.replyMaxLength)
+    } catch (error: any) {
+        console.error('AI Error:', error)
+        const status = error.statusCode || error.status || (error.data$?.response$?.status)
+        if (status === 429) return "I'm currently being rate limited by my brain provider. Try again in a bit."
+        return "My brain is fried right now (AI Error). Ask me something else or try again later."
+    }
 })
 
 bot.ready()

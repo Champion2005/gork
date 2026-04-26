@@ -129,29 +129,84 @@ const buildMsgs = (args: ChatInput[]): { role: 'system' | 'user' | 'assistant' |
 }
 
 export const getWithOptions = async (options: { model?: string }, ...msgs: ChatInput[]): Promise<ChatOut> => {
-    const model = options.model?.trim() || 'x-ai/grok-4.20'
-    const msg = await or.chat.send({ chatRequest: { messages: buildMsgs(msgs), model, tools } })
-    const usageObj = typeof msg.usage == 'object' && msg.usage !== null ? msg.usage as Record<string, unknown> : {}
-    let usageFromChat: UsageStats = {
-        inputTokens: numberOrZero(msg.usage?.promptTokens),
-        outputTokens: numberOrZero(msg.usage?.completionTokens),
-        cachedTokens: numberOrZero(msg.usage?.promptTokensDetails?.cachedTokens),
-        cost: numberOrZero(usageObj.cost ?? usageObj.totalCost),
+    const initialModel = options.model?.trim() || 'x-ai/grok-4.20'
+    let model = initialModel
+    let lastError: any = null
+
+    for (const attempt of [1, 2, 3]) {
+        try {
+            const msg = await or.chat.send({ chatRequest: { messages: buildMsgs(msgs), model, tools } })
+            const usageObj = typeof msg.usage == 'object' && msg.usage !== null ? msg.usage as Record<string, unknown> : {}
+            let usageFromChat: UsageStats = {
+                inputTokens: numberOrZero(msg.usage?.promptTokens),
+                outputTokens: numberOrZero(msg.usage?.completionTokens),
+                cachedTokens: numberOrZero(msg.usage?.promptTokensDetails?.cachedTokens),
+                cost: numberOrZero(usageObj.cost ?? usageObj.totalCost),
+            }
+            usageFromChat.cost ||= await estimateCostFromPricing(msg.model, usageFromChat)
+
+            const usage = await readGenerationUsage(msg.id, usageFromChat)
+
+            const toolCall = msg.choices[0].message.toolCalls?.[0]?.function
+            if (!toolCall) return { content: msg.choices[0].message.content || '', usage }
+
+            let out: string
+            let args: any
+            try {
+                args = JSON.parse(toolCall.arguments)
+                const handler = handlers[toolCall.name]
+                if (!handler) throw new Error(`Tool handler for ${toolCall.name} not found`)
+                out = String(await handler(args))
+            } catch (e: any) {
+                console.error(`Tool ${toolCall.name} failed:`, e)
+                out = `Error calling tool ${toolCall.name}: ${e.message}`
+            }
+
+            // Cap tool output size to prevent context overflow
+            if (out.length > 10000) out = out.slice(0, 10000) + '... (truncated)'
+
+            msgs.push(`successfully called ${toolCall.name} ${JSON.stringify(args)}:\n${out}`)
+            console.log(`${toolCall.name} call: ${out.length} chars`)
+            
+            const next = await getWithOptions({ model }, ...msgs)
+            return { content: next.content, usage: mergeUsage(usage, next.usage) }
+        } catch (error: any) {
+            lastError = error
+            const status = error.statusCode || error.status || (error.data$?.response$?.status)
+            const isRateLimit = status === 429 || error.message?.includes('rate limit')
+            
+            console.error(`AI attempt ${attempt} failed for model ${model}:`, status, error.message)
+
+            if (isRateLimit) {
+                const wait = attempt * 2000
+                console.log(`Rate limited. Waiting ${wait}ms...`)
+                await sleep(wait)
+                if (attempt >= 2 && model !== 'x-ai/grok-4.20') {
+                    console.log('Switching to fallback model x-ai/grok-4.20 due to rate limits')
+                    model = 'x-ai/grok-4.20'
+                }
+                continue
+            }
+
+            if (status === 400 || status === 404 || status === 401) {
+                 if (model !== 'x-ai/grok-4.20') {
+                    console.log(`Model error (${status}). Switching to fallback x-ai/grok-4.20`)
+                    model = 'x-ai/grok-4.20'
+                    continue
+                 }
+            }
+
+            // Generic server error (5xx)
+            if (status >= 500) {
+                await sleep(1000)
+                continue
+            }
+
+            break
+        }
     }
-    usageFromChat.cost ||= await estimateCostFromPricing(msg.model, usageFromChat)
 
-    const usage = await readGenerationUsage(msg.id, usageFromChat)
-
-    const tool = msg.choices[0].message.toolCalls?.[0]?.function
-    if (!tool) return { content: msg.choices[0].message.content, usage }
-
-    const args = JSON.parse(tool.arguments)
-    const out = await handlers[tool.name](args)
-    msgs.push(`successfully called ${tool.name} ${JSON.stringify(args)}:\n${out}`)
-    if (args.content) args.content = '<truncated>'
-    console.log(`${tool.name} ${JSON.stringify(args)}: ${out?.length}`)
-    const next = await getWithOptions({ model }, ...msgs)
-    return { content: next.content, usage: mergeUsage(usage, next.usage) }
+    throw lastError || new Error('AI request failed after multiple attempts')
 }
 
 export const get = async (...msgs: ChatInput[]) => getWithOptions({}, ...msgs)
