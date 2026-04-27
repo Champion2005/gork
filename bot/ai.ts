@@ -6,7 +6,7 @@ if (!apiKey) throw new Error('OPENROUTER_API_KEY is not set')
 export type UsageStats = { inputTokens: number; outputTokens: number; cachedTokens: number; cost: number }
 type ChatOut = { content: string; usage: UsageStats }
 type ModelPricing = { prompt: number; completion: number; inputCacheRead: number }
-type ChatLine = { msg: string; name: string; id?: string }
+type ChatLine = { msg: string; name: string; id?: string; role?: 'user' | 'assistant' }
 type ChatInput = string | ChatLine | ChatLine[]
 
 const or = new OpenRouter({ apiKey })
@@ -114,8 +114,9 @@ const buildMsgs = (args: ChatInput[]): { role: 'system' | 'user' | 'assistant' |
     // Add history + current message in a structured way
     lines.forEach((line, idx) => {
         const isLast = idx === lines.length - 1
+        const role = line.role || (line.id === 'gork' ? 'assistant' : 'user')
         messages.push({
-            role: 'user',
+            role,
             name: line.name.replace(/[^a-zA-Z0-9_-]/g, '_'), // Tool names/names must match pattern
             content: isLast ? `[CURRENT MESSAGE from ${line.name} (ID: ${line.id})]: ${line.msg}` : `${line.name}: ${line.msg}`
         })
