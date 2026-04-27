@@ -3,7 +3,7 @@ import { Client, GatewayIntentBits, REST, Routes, TextChannel, type ChatInputCom
 
 export const isString = 3, isInteger = 4, isUser = 6
 type Chats = {
-    history: { id: string; name: string; msg: string; role: 'user' | 'assistant' }[], next: { id: string; name: string; msg: string },
+    history: { id: string; name: string; msg: string; role: 'user' | 'assistant'; isReply?: boolean }[], next: { id: string; name: string; msg: string },
     channel: string, message?: Message, interaction?: ChatInputCommandInteraction
 }
 type Handler = (chat: Chats, args: Record<string, unknown>) => void | Promise<string | undefined>
@@ -35,38 +35,39 @@ const buildDiscordCommands = () => {
 }
 
 const buildChats = async (msg: Message, n = 12): Promise<Chats> => {
-    let history: { id: string; name: string; msg: string; role: 'user' | 'assistant' }[] = []
-
-    if (msg.reference && msg.reference.messageId) {
-        // If it's a reply, prioritize the reply chain for focus
-        let current: Message | null = msg
-        while (current && current.reference && current.reference.messageId && history.length < n) {
-            try {
-                const ref = await current.fetchReference()
-                history.unshift({
-                    id: ref.author.id,
-                    name: ref.author.username,
-                    msg: ref.content,
-                    role: ref.author.id === client.user!.id ? 'assistant' : 'user'
-                })
-                current = ref
-            } catch (e) {
-                break
-            }
+    // Fetch recent history
+    const msgs = await msg.channel.messages.fetch({ limit: Math.max(n * 2, 20) })
+    const allRecent = [...msgs.values()].reverse().filter(m => m.id !== msg.id)
+    
+    // Identify reply chain
+    const replyChainIds = new Set<string>()
+    let current: Message | null = msg
+    
+    // Trace back up to n messages in the reply chain
+    let traceCount = 0
+    while (current && current.reference && current.reference.messageId && traceCount < n) {
+        try {
+            const refId = current.reference.messageId
+            const ref = msgs.get(refId) || await current.fetchReference()
+            replyChainIds.add(ref.id)
+            current = ref
+            traceCount++
+        } catch {
+            break
         }
-    } else {
-        // Otherwise, use recent history
-        const msgs = await msg.channel.messages.fetch({ limit: n + 1 })
-        history = [...msgs.values()].reverse()
-            .filter(m => m.id !== msg.id)
-            .slice(-n)
-            .map(m => ({
-                id: m.author.id,
-                name: m.author.username,
-                msg: m.content,
-                role: m.author.id === client.user!.id ? 'assistant' : 'user'
-            }))
     }
+
+    // Combine recent messages and tag those in the reply chain
+    // We want to keep the N most recent messages, but ensure reply chain members are present
+    const history = allRecent
+        .slice(-n) // Keep it focused on most recent N
+        .map(m => ({
+            id: m.author.id,
+            name: m.author.username,
+            msg: m.content,
+            role: m.author.id === client.user!.id ? 'assistant' : (m.author.bot ? 'assistant' : 'user') as 'user' | 'assistant',
+            isReply: replyChainIds.has(m.id)
+        }))
 
     return { history, next: { id: msg.author.id, name: msg.author.username, msg: msg.content }, channel: (msg.channel as TextChannel).name, message: msg }
 }
