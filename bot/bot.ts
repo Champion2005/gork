@@ -27,8 +27,12 @@ const buildDiscordCommands = () => {
 
     for (const cmd of cmds) {
         const [root, sub] = cmd.name.split(' ')
-        if (!roots.has(root)) roots.set(root, { name: root, description: 'gork', options: [], })
-        roots.get(root).options.push({ name: sub, description: 'gork', type: 1, options: buildOptions(cmd.args) })
+        if (!roots.has(root)) roots.set(root, { name: root, description: 'gork', options: [] })
+        if (sub) {
+            roots.get(root).options.push({ name: sub, description: 'gork', type: 1, options: buildOptions(cmd.args) })
+        } else {
+            roots.get(root).options = buildOptions(cmd.args)
+        }
     }
 
     return [...roots.values()]
@@ -79,7 +83,30 @@ export const ready = () => {
 
     client.on('interactionCreate', async int => {
         if (!int.isChatInputCommand()) return
-        await int.reply({ content: 'gimmie a minute bruh', ephemeral: true })
+        
+        const sub = int.options.getSubcommand(false)
+        const cmdName = sub ? `${int.commandName} ${sub}` : int.commandName
+        const cmd = cmds.find(c => c.name === cmdName)
+        if (!cmd) {
+            await int.reply({ content: 'command not found', ephemeral: true })
+            return
+        }
+
+        await int.deferReply()
+        try {
+            const args = Object.fromEntries(Object.keys(cmd.args).map(key => [key, getArgValue(int, key, cmd.args[key])]))
+            const reply = await cmd.handler({
+                history: [],
+                next: { id: int.user.id, name: int.user.username, msg: '' },
+                channel: int.channel && !int.channel.isDMBased() ? (int.channel as TextChannel).name : 'dm',
+                interaction: int
+            }, args)
+            if (reply) await int.editReply(reply)
+            else await int.deleteReply()
+        } catch (e: any) {
+            console.error('Interaction error:', e)
+            await int.editReply(`Error: ${e.message}`)
+        }
     })
 
     client.on('messageCreate', async msg => {

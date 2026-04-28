@@ -33,6 +33,31 @@ ai.tool('add-fun-fact', 'Adds a permanent personal fact about a user to your mem
     return `Added fact for ${out.displayName} (${out.userId})`
 })
 
+bot.command('leaderboard', {}, async () => {
+    const users = memory.listUsers().sort((a, b) => (b.cost || 0) - (a.cost || 0)).slice(0, 10)
+    if (!users.length) return "No users found."
+    const lines = users.map((u, i) => `${i + 1}. **${u.displayName}** - $${(u.cost || 0).toFixed(4)}`)
+    return `**Top Users by Cost:**\n${lines.join('\n')}`
+})
+
+bot.command('funfact', { user: bot.isUser }, async (chat, args: any) => {
+    const user = args.user
+    if (!user) return "User not found."
+    const users = memory.listUsers()
+    const target = users.find(u => u.discordId === user.id)
+    if (!target || !target.facts || target.facts.length === 0) return `I don't know any fun facts about ${user.username}.`
+    const facts = target.facts.map((f, i) => `${i + 1}. ${f}`).join('\n')
+    return `**Fun facts about ${target.displayName}:**\n${facts}`
+})
+
+bot.command('usage', {}, async () => {
+    const usage = memory.getUsageAnalytics()
+    const totalCost = usage.burnRate.costLast7d.toFixed(4)
+    const dailyAvg = usage.burnRate.avgDailyCost7d.toFixed(4)
+    const monthlyProj = usage.burnRate.projectedMonthlyCost.toFixed(4)
+    return `**Usage Analytics (Last 7 Days):**\n- Total Cost: $${totalCost}\n- Daily Avg: $${dailyAvg}\n- Projected Monthly: $${monthlyProj}`
+})
+
 bot.message(async chat => {
     const cfg = config.loadConfig()
     if (cfg.deniedUserIds.includes(chat.next.id)) return ''
