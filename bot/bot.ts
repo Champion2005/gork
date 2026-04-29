@@ -15,7 +15,7 @@ export const message = (h: Handler) => msgHandler = h
 let historyDepthGetter = () => 12
 export const setHistoryDepthGetter = (getter: () => number) => { historyDepthGetter = getter }
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] })
+export const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages] })
 
 const getArgValue = (int: ChatInputCommandInteraction, key: string, type: number) =>
     type == isInteger ? int.options.getInteger(key) : type == isUser ? int.options.getUser(key) : int.options.getString(key)
@@ -82,7 +82,42 @@ export const ready = () => {
             .put(Routes.applicationCommands(client.user!.id), { body: buildDiscordCommands() }))
 
     client.on('interactionCreate', async int => {
-        if (!int.isChatInputCommand()) return
+        if (int.isButton()) {
+            const [action, userId] = int.customId.split('_blog_');
+            if (!action || !userId) return;
+
+            const adminId = process.env.ADMIN_DISCORD_ID;
+            if (int.user.id !== adminId) {
+                await int.reply({ content: 'Only the admin can do this.', ephemeral: true });
+                return;
+            }
+
+            const status = action === 'approve' ? 'approved' : 'denied';
+            const secret = process.env.SHARED_INTERNAL_SECRET;
+            const blogUrl = process.env.BLOG_SITE_URL || 'https://blog.apatel.xyz';
+
+            try {
+                const res = await fetch(`${blogUrl}/api/internal/set-status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, status, secret })
+                });
+
+                if (res.ok) {
+                    await int.update({
+                        content: `User <@${userId}> has been **${status}** for the blog.`,
+                        components: []
+                    });
+                } else {
+                    await int.reply({ content: `Failed to update status: ${res.statusText}`, ephemeral: true });
+                }
+            } catch (e: any) {
+                await int.reply({ content: `Error: ${e.message}`, ephemeral: true });
+            }
+            return;
+        }
+
+        if (!int.isChatInputCommand()) return;
         
         const sub = int.options.getSubcommand(false)
         const cmdName = sub ? `${int.commandName} ${sub}` : int.commandName

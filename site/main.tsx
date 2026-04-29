@@ -8,6 +8,8 @@ import * as dashboardUsers from '../bot/dashboard-users'
 import * as discordOAuth from '../bot/discord-oauth'
 import { getSessionSecret } from '../bot/session'
 import { migrateFromLegacy } from '../bot/storage'
+import { client } from '../bot/bot'
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js'
 
 // Migrate files to persistent storage if needed
 ['db.json', 'usage-events.jsonl', 'audit-log.jsonl', 'bot-config.json', 'dashboard-users.json', 'dashboard-session-secret.txt']
@@ -241,6 +243,45 @@ Bun.serve({
     if (path == '/dist.js') return new Response(js, { headers: { 'Content-Type': 'text/javascript' } })
     if (path == '/style.css') return new Response(Bun.file('./site/output.css'))
     if (path == '/favicon.ico') return new Response(null, { status: 204 })
+
+    if (path == '/api/internal/blog-request') {
+      if (req.method != 'POST') return new Response('Method not allowed', { status: 405 })
+      const body = await parseJsonBody(req)
+      if (!body) return new Response('Invalid payload', { status: 400 })
+      
+      const secret = getString(body, 'secret')
+      if (secret !== process.env.SHARED_INTERNAL_SECRET) return new Response('Forbidden', { status: 403 })
+
+      const { userId, username } = body as { userId: string, username: string }
+      const adminId = process.env.ADMIN_DISCORD_ID
+      if (!adminId) return new Response('Admin ID not set', { status: 500 })
+
+      try {
+        const user = await client.users.fetch(adminId)
+        if (!user) return new Response('Admin user not found', { status: 404 })
+
+        const row = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId(`approve_blog_${userId}`)
+              .setLabel('Approve')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId(`deny_blog_${userId}`)
+              .setLabel('Deny')
+              .setStyle(ButtonStyle.Danger),
+          )
+
+        await user.send({
+          content: `🔔 **Blog Access Request**\nUser: **${username}** (\`${userId}\`) is requesting access to your blog.`,
+          components: [row]
+        })
+
+        return Response.json({ ok: true })
+      } catch (e: any) {
+        return new Response(e.message, { status: 500 })
+      }
+    }
 
     if (path == '/auth/status') {
       const session = readSession(req)
